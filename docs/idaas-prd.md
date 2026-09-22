@@ -14,7 +14,8 @@
 | 开源策略 | **全开源（MIT）+ 商业可用**；收入 = 更新订阅 + 托管服务 + 未来平台分润 |
 | 组织/包名 | GitHub org `getbrick`，npm scope `@getbrick/*` |
 | 数据归属 | 用户数据不搬家：在客户数据库生成标准表（迁移脚本），无黑盒 |
-| 配置方式 | 声明式配置 `idass.config.ts`，进 git 可 review，AI 友好 |
+| 配置方式 | 统一根配置 `getbrick.config.ts`，按产品分节（`idaas: defineIdaasConfig({...})`），进 git 可 review，AI 友好 |
+| 命名规范 | 统一 Getbrick 命名空间：配置 `getbrick.config.ts`、环境变量 `GETBRICK_*`、CLI `getbrick <product> <cmd>`、表前缀 `gb_` |
 
 ## 2. Feature list
 
@@ -24,11 +25,11 @@
 | 认证 | 账密登录/注册、手机验证码、邮箱验证、找回密码、JWT 签发/刷新/撤销、单点登出 |
 | MFA | TOTP（可选开启） |
 | 权限 | RBAC（用户/角色/权限点）、组织架构（树形）、接口级鉴权守卫、数据权限注解（预留接口） |
-| 策略 | 密码强度、登录失败锁定、会话时长/并发策略（声明式配置） |
+| 策略 | 密码强度、登录失败锁定、会话时长/并发策略（`getbrick.config.ts` 声明式配置） |
 | 审计 | 登录/登出/授权变更/管理操作事件，可插拔存储（默认落项目库） |
-| 集成 | NestJS Guard/装饰器、迁移脚本自动建表、`idass.config.ts` |
+| 集成 | NestJS Guard/装饰器、迁移脚本自动建表、`getbrick.config.ts` |
 | 管理台 | 可插拔 NestJS 管理模块：用户/角色/组织/审计 API + 基础管理页（白标配置） |
-| CLI | `init` 向导（生成配置+迁移）、`upgrade` 升级检查 |
+| CLI | `getbrick idaas init` 向导（生成配置+迁移）、`getbrick idaas upgrade` 升级检查（CLI 单命名空间，产品做子命令，未来产品零新增成本） |
 | 分发 | npm 发 + 文档站 + 3 个示例工程（NestJS 全功能 / 最小接入 / 管理台演示） |
 
 ### P1（生态化）
@@ -54,7 +55,7 @@ core/
 ├── token/         签发/验证/刷新/撤销（可插拔：本地JWT / 数据库会话）
 ├── rbac/          角色/权限点/继承/缓存失效
 ├── org/           组织架构树、用户归属
-├── policy/        策略引擎（读 idass.config，运行时裁决）
+├── policy/        策略引擎（读 getbrick.config 的 idaas 节，运行时裁决）
 ├── audit/         事件模型 + Sink 接口（DB/文件/HTTP）
 └── spi/           全部可插拔点定义（存储/发信/缓存/时钟）
 ```
@@ -64,20 +65,20 @@ core/
 2. SPI 全接口化：测试内存实现 + 替换文档
 3. 时序敏感逻辑注入 Clock（可测试性）
 
-## 4. Data model（生成到客户库，`id_` 前缀，各表预留 `extra jsonb`）
+## 4. Data model（生成到客户库，统一 `gb_` 前缀，各表预留 `extra jsonb`）
 
 | 表 | 关键字段 |
 |----|---------|
-| `id_user` | id, username, email, phone, status, mfa_secret?, created_at |
-| `id_credential` | id, user_id, type(password/otp), hash, last_used_at |
-| `id_role` | id, code, name, parent_id |
-| `id_permission` | id, code, name, type(api/menu/button) |
-| `id_role_permission` | role_id, permission_id |
-| `id_user_role` | user_id, role_id, org_id? |
-| `id_org` | id, parent_id, path(物化路径), name, sort |
-| `id_org_user` | org_id, user_id, is_primary |
-| `id_session` | id, user_id, token_hash, device, ip, expires_at, revoked_at |
-| `id_audit_log` | id, user_id?, event, detail(jsonb), ip, ua, created_at |
+| `gb_user` | id, username, email, phone, status, mfa_secret?, created_at |
+| `gb_credential` | id, user_id, type(password/otp), hash, last_used_at |
+| `gb_role` | id, code, name, parent_id |
+| `gb_permission` | id, code, name, type(api/menu/button) |
+| `gb_role_permission` | role_id, permission_id |
+| `gb_user_role` | user_id, role_id, org_id? |
+| `gb_org` | id, parent_id, path(物化路径), name, sort |
+| `gb_org_user` | org_id, user_id, is_primary |
+| `gb_session` | id, user_id, token_hash, device, ip, expires_at, revoked_at |
+| `gb_audit_log` | id, user_id?, event, detail(jsonb), ip, ua, created_at |
 
 ## 5. Package structure
 

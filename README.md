@@ -4,7 +4,7 @@ Embeddable identity & access platform for Node.js delivery projects.
 
 - Auth: password / SMS code / email / TOTP MFA
 - Access: RBAC + org structure + route guards
-- Strategy: password & session policies as code (`idass.config.ts`)
+- Strategy: password & session policies as code (`getbrick.config.ts`)
 - Audit: pluggable event sinks
 - Delivery: standard tables in *your* database, zero runtime lock-in
 
