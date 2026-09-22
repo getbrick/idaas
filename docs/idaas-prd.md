@@ -15,7 +15,7 @@
 | 组织/包名 | GitHub org `getbrick`，npm scope `@getbrick/*` |
 | 数据归属 | 用户数据不搬家：在客户数据库生成标准表（迁移脚本），无黑盒 |
 | 配置方式 | 统一根配置 `getbrick.config.ts`，按产品分节（`idaas: defineIdaasConfig({...})`），进 git 可 review，AI 友好 |
-| 命名规范 | 统一 Getbrick 命名空间：配置 `getbrick.config.ts`、环境变量 `GETBRICK_*`、CLI `getbrick <product> <cmd>`、表前缀 `gb_` |
+| 命名规范 | 统一 Getbrick 命名空间：配置 `getbrick.config.ts`、环境变量 `GETBRICK_*`、CLI `getbrick <product> <cmd>`、表前缀 `gb_<产品>_<实体>`（产品间隔离） |
 
 ## 2. Feature list
 
@@ -65,20 +65,20 @@ core/
 2. SPI 全接口化：测试内存实现 + 替换文档
 3. 时序敏感逻辑注入 Clock（可测试性）
 
-## 4. Data model（生成到客户库，统一 `gb_` 前缀，各表预留 `extra jsonb`）
+## 4. Data model（生成到客户库，统一 `gb_idaas_` 前缀，各表预留 `extra jsonb`）
 
 | 表 | 关键字段 |
 |----|---------|
-| `gb_user` | id, username, email, phone, status, mfa_secret?, created_at |
-| `gb_credential` | id, user_id, type(password/otp), hash, last_used_at |
-| `gb_role` | id, code, name, parent_id |
-| `gb_permission` | id, code, name, type(api/menu/button) |
-| `gb_role_permission` | role_id, permission_id |
-| `gb_user_role` | user_id, role_id, org_id? |
-| `gb_org` | id, parent_id, path(物化路径), name, sort |
-| `gb_org_user` | org_id, user_id, is_primary |
-| `gb_session` | id, user_id, token_hash, device, ip, expires_at, revoked_at |
-| `gb_audit_log` | id, user_id?, event, detail(jsonb), ip, ua, created_at |
+| `gb_idaas_user` | id, username, email, phone, status, mfa_secret?, created_at |
+| `gb_idaas_credential` | id, user_id, type(password/otp), hash, last_used_at |
+| `gb_idaas_role` | id, code, name, parent_id |
+| `gb_idaas_permission` | id, code, name, type(api/menu/button) |
+| `gb_idaas_role_permission` | role_id, permission_id |
+| `gb_idaas_user_role` | user_id, role_id, org_id? |
+| `gb_idaas_org` | id, parent_id, path(物化路径), name, sort |
+| `gb_idaas_org_user` | org_id, user_id, is_primary |
+| `gb_idaas_session` | id, user_id, token_hash, device, ip, expires_at, revoked_at |
+| `gb_idaas_audit_log` | id, user_id?, event, detail(jsonb), ip, ua, created_at |
 
 ## 5. Package structure
 
