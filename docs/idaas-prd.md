@@ -10,6 +10,7 @@
 | 决策 | 结论 |
 |------|------|
 | 内核形态 | **嵌入式代码库**（非独立服务），随客户项目交付与私有化 |
+| 内核基座 | **Better Auth（MIT）**：认证/会话/MFA/OTP/管理/组织由上游覆盖；预设层（getbrick/审计/策略/权限增强/表映射）为我们所有 |
 | 技术栈 | TypeScript / Node，首个适配器 **NestJS** |
 | 开源策略 | **全开源（MIT）+ 商业可用**；收入 = 更新订阅 + 托管服务 + 未来平台分润 |
 | 组织/包名 | GitHub org `getbrick`，npm scope `@getbrick/*` |
@@ -46,24 +47,39 @@
 - 能力目录官方发送器（短信/邮件）
 - 平台托管形态
 
-## 3. Kernel architecture
+## 3. Kernel architecture（基于 Better Auth 的分层设计）
+
+> **决策：内核不自研安全原语，以 [Better Auth](https://github.com/better-auth/better-auth)（MIT）为基础层**——它覆盖认证/会话/MFA/OTP/管理功能/组织与访问控制，且支持自定义表名映射。我们的产品价值在交付包装、审计、策略、白标管理台与订阅体系，全部为 Better Auth 射程之外的差异化层。
+
+### 3.1 分层
 
 ```
-core/
-├── auth/          认证流程编排（凭据校验→MFA→会话建立）
-├── credential/    凭据存储（argon2 哈希、验证码生命周期）
-├── token/         签发/验证/刷新/撤销（可插拔：本地JWT / 数据库会话）
-├── rbac/          角色/权限点/继承/缓存失效
-├── org/           组织架构树、用户归属
-├── policy/        策略引擎（读 getbrick.config 的 idaas 节，运行时裁决）
-├── audit/         事件模型 + Sink 接口（DB/文件/HTTP）
-└── spi/           全部可插拔点定义（存储/发信/缓存/时钟）
+┌────────────────────────────────────────────────────┐
+│ @getbrick/idaas-nestjs   适配器层                    │
+│   Guard/装饰器/管理模块（封装社区适配器并加固）           │
+├────────────────────────────────────────────────────┤
+│ @getbrick/idaas-core     预设层（我们的核心）         │
+│   安全默认值：锁定/会话/密码策略（getbrick.config 映射） │
+│   gb_idaas_* 表名/字段映射（better-auth modelName）   │
+│   审计：databaseHooks → 统一审计事件 → Sink          │
+│   权限增强插件：角色继承/菜单按钮权限点/数据范围        │
+├────────────────────────────────────────────────────┤
+│ better-auth（上游）+ 插件                              │
+│   emailAndPassword/phoneNumber/emailOTP/2FA/         │
+│   admin/organization + 社区 NestJS 适配器             │
+└────────────────────────────────────────────────────┘
 ```
 
-设计铁律：
-1. 内核**零框架依赖**（不 import NestJS），适配器做胶水
-2. SPI 全接口化：测试内存实现 + 替换文档
-3. 时序敏感逻辑注入 Clock（可测试性）
+### 3.2 架构铁律
+
+1. **预设层隔离上游**：客户代码只 import `@getbrick/*`，不直接接触 better-auth 原生 API——上游 2.0 破坏性变更时只改预设层，必要时 fork
+2. **版本策略**：预设层锁定 better-auth 版本区间；每个安全补丁带回归用例（订阅价值证据链）
+3. **表名映射不可黑盒**：客户库中所有表可审计、可自定义映射
+4. **审计全量挂 hooks**：登录/授权变更/管理操作经统一事件模型脱敏后落 Sink（DB/文件/HTTP）
+
+### 3.3 与纯自研方案的取舍（记录）
+
+纯自研内核（原 v0.1 规划的 spi/auth/credential/token/rbac 独立实现）被否决：Better Auth 已实战覆盖其约 70%，自研的安全正确性风险与维护成本远大于差异价值。原自研设计保留在 git 历史中作为 Plan B 参考。
 
 ## 4. Data model（生成到客户库，统一 `gb_idaas_` 前缀，各表预留 `extra jsonb`）
 
@@ -83,10 +99,10 @@ core/
 ## 5. Package structure
 
 ```
-@getbrick/idaas-core        ①内核，零依赖
-@getbrick/idaas-nestjs      ②NestJS 适配器（守卫/装饰器/管理模块）
+@getbrick/idaas-core        ①预设层：better-auth 深度预设 + 审计 + 策略 + 权限增强
+@getbrick/idaas-nestjs      ②NestJS 适配器（封装社区适配器加固：守卫/装饰器/管理模块）
 @getbrick/idaas-ui          ③登录页/管理页组件（白标可定制）
-@getbrick/idaas-cli         init 向导 / 迁移 / upgrade 检查
+@getbrick/idaas-cli         getbrick idaas init / 迁移 / upgrade 检查（包装 better-auth CLI）
 ```
 
 升级 = `npm update` + 迁移命令；**更新订阅 = 私源访问**（安全补丁 + 新版本 + LTS 通道，按公司/年收费）。
@@ -103,7 +119,11 @@ core/
 
 | 里程碑 | 周期 | 交付物 |
 |--------|------|--------|
-| M1 内核 | 4-6 周 | core 全模块 + 测试 + SPI 文档 |
-| M2 NestJS 集成 | 2-3 周 | 适配器 + 管理模块 + CLI + 示例工程 |
-| M3 发布 | 2 周 | 文档站、npm 发版、社区渠道（掘金/GitHub） |
-| M4 反馈迭代 | 持续 | 种子开发公司真实交付 2-3 个案例 → 进 P1 |
+| M1 预设层 + 适配器 | 2-3 周 | W1: idaas-core 预设包（better-auth 集成 + getbrick.config 映射 + gb_idaas_* 表映射 + 审计 hooks）；W2: idaas-nestjs（适配器封装 + Guard/装饰器 + 权限增强：角色继承/数据范围）；W3: idaas-cli（getbrick idaas init）+ 示例工程 + 文档 → **v1.0 发布** |
+| M2 发布打磨 | 1-2 周 | 文档站、npm 发版、社区渠道（掘金/GitHub）、3 个示例工程 |
+| M3 反馈迭代 | 持续 | 种子开发公司真实交付 2-3 个案例 → 进 P1 |
+
+质量门槛（原内核规划保留，作用于预设层与差异化代码）：
+- 预设层/增强插件单测覆盖率 ≥90%（CI 红线）
+- 每个安全相关修复必须配回归用例
+- CI 矩阵：Node 20/22/24 × PostgreSQL
