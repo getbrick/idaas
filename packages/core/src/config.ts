@@ -21,6 +21,15 @@ export const auditConfigSchema = z.object({
   sink: z.custom<AuditSink>().optional(),
 });
 
+export const phoneNumberConfigSchema = z.object({
+  otpLength: z.number().int().min(4).max(8).default(6),
+  otpExpiresInSeconds: z.number().int().min(60).max(3600).default(300),
+  /** sign in requires a verified phone number */
+  requireVerification: z.boolean().default(false),
+  /** create a user automatically when an unknown phone number verifies */
+  signUpOnVerification: z.boolean().default(false),
+});
+
 export const rbacRoleSchema = z.object({
   extends: z.array(z.string()).default([]),
   permissions: z.array(z.string()).default([]),
@@ -44,6 +53,7 @@ export const idaasConfigSchema = z.object({
   password: passwordPolicySchema.default({}),
   lockout: lockoutPolicySchema.default({}),
   audit: auditConfigSchema.default({}),
+  phoneNumber: phoneNumberConfigSchema.default({}),
   rbac: rbacConfigSchema.default({}),
   features: z
     .object({

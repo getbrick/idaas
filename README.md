@@ -45,10 +45,31 @@ What you get out of the box:
 - admin plugin: role management, ban, impersonation via better-auth admin endpoints
 - organizations: multi-tenant orgs with member/invitation tables (`gb_idaas_organization`, `gb_idaas_member`, `gb_idaas_invitation`), member roles merged into effective permissions
 - white-label React UI: `@getbrick/idaas-ui` — themed `AuthForm` / `AuthCard` / `SignOutButton`
+- SMS OTP: `features.phoneNumber` with a pluggable `smsSender` — send OTP, verify, sign-up-on-verification, phone-number sign-in and password reset
 
 ## Examples
 
 - [examples/nestjs-postgres](examples/nestjs-postgres) — NestJS + real Postgres, e2e verified (migration + signup + guarded routes)
+
+## SMS OTP
+
+```ts
+export const idaas = defineIdaasConfig({
+  appName: "My App",
+  features: { phoneNumber: true },
+  phoneNumber: { otpLength: 6, otpExpiresInSeconds: 300, signUpOnVerification: true },
+});
+
+export const auth = createIdaas({
+  config: idaas,
+  database: db,
+  smsSender: async ({ phone, code }) => {
+    await mySmsProvider.send({ to: phone, text: `Your code is ${code}` });
+  },
+});
+```
+
+Enabled endpoints: `sendPhoneNumberOTP`, `verifyPhoneNumber`, `signInPhoneNumber`, `requestPasswordResetPhoneNumber` / `resetPasswordPhoneNumber`.
 
 ## Packages
 

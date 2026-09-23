@@ -1,5 +1,6 @@
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { admin, organization, twoFactor } from "better-auth/plugins";
+import { phoneNumber } from "better-auth/plugins/phone-number";
 import type { IdaasConfig, IdaasConfigInput } from "./config.js";
 import { defineIdaasConfig } from "./config.js";
 import { buildTableMap } from "./tables.js";
@@ -11,6 +12,7 @@ export interface CreateIdaasInput {
   auditSink?: (event: { event: string; userId?: string; detail?: Record<string, unknown>; occurredAt: string }) => void | Promise<void>;
   extraOptions?: Partial<BetterAuthOptions>;
   smsSender?: (payload: { phone: string; code: string }) => Promise<void>;
+  phoneValidator?: (phone: string) => boolean | Promise<boolean>;
 }
 
 export function createIdaas(input: CreateIdaasInput) {
@@ -43,6 +45,12 @@ export function createIdaas(input: CreateIdaasInput) {
     },
     user: {
       modelName: tables.user,
+      additionalFields: config.features.phoneNumber
+        ? {
+            phoneNumber: { type: "string", required: false, unique: true, returned: true },
+            phoneNumberVerified: { type: "boolean", required: false, returned: true, input: false },
+          }
+        : undefined,
     },
     account: {
       modelName: tables.account,
@@ -76,6 +84,26 @@ export function createIdaas(input: CreateIdaasInput) {
   if (config.features.twoFactor) {
     plugins.push(twoFactor({ twoFactorTable: tables.twoFactor }));
   }
+  if (config.features.phoneNumber) {
+    if (!input.smsSender) {
+      throw new Error(
+        "[getbrick-idaas] features.phoneNumber requires an smsSender callback: ({ phone, code }) => Promise<void>",
+      );
+    }
+    plugins.push(
+      phoneNumber({
+        otpLength: config.phoneNumber.otpLength,
+        expiresIn: config.phoneNumber.otpExpiresInSeconds,
+        requireVerification: config.phoneNumber.requireVerification,
+        sendOTP: ({ phoneNumber: phone, code }) => input.smsSender!({ phone, code }),
+        sendPasswordResetOTP: ({ phoneNumber: phone, code }) => input.smsSender!({ phone, code }),
+        phoneNumberValidator: input.phoneValidator,
+        ...(config.phoneNumber.signUpOnVerification
+          ? { signUpOnVerification: { getTempEmail: (phone: string) => `phone-${phone}@users.getbrick.local` } }
+          : {}),
+      }),
+    );
+  }
   if (config.features.organization) {
     plugins.push(
       organization({
@@ -86,9 +114,6 @@ export function createIdaas(input: CreateIdaasInput) {
         },
       }),
     );
-  }
-  if (config.features.organization) {
-    // W2: 权限增强/组织树插件在此接入
   }
   if (plugins.length > 0) {
     (merged as BetterAuthOptions).plugins = plugins;

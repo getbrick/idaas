@@ -88,3 +88,69 @@ describe("createIdaas smoke", () => {
     expect(signUp.user.email).toBe("owner@example.com");
   });
 });
+
+describe("phone-number (SMS OTP) feature", () => {
+  function smsHarness() {
+    const sent: Array<{ phone: string; code: string }> = [];
+    const auth = createIdaas({
+      config: {
+        appName: "SmsApp",
+        features: { phoneNumber: true },
+        phoneNumber: { signUpOnVerification: true },
+      },
+      database: memoryDb(),
+      smsSender: async ({ phone, code }) => {
+        sent.push({ phone, code });
+      },
+    });
+    return { auth, sent };
+  }
+
+  it("requires an smsSender when phoneNumber feature is enabled", () => {
+    expect(() =>
+      createIdaas({
+        config: { appName: "SmsApp", features: { phoneNumber: true } } as never,
+        database: memoryDb(),
+      }),
+    ).toThrow(/smsSender/);
+  });
+
+  it("sends an OTP, verifies it and signs up the user on first verification", async () => {
+    const { auth, sent } = smsHarness();
+    const phone = "+8613900000001";
+
+    await castApi(auth).sendPhoneNumberOTP({ body: { phoneNumber: phone } });
+    expect(sent).toHaveLength(1);
+    expect(sent[0].phone).toBe(phone);
+    expect(sent[0].code).toMatch(/^\d{6}$/);
+
+    const verified = (await castApi(auth).verifyPhoneNumber({
+      body: { phoneNumber: phone, code: sent[0].code },
+    })) as { status?: boolean; user?: { phoneNumber?: string; email?: string } } | null;
+    expect(verified?.status).toBe(true);
+    expect(verified?.user?.phoneNumber).toBe(phone);
+    expect(verified?.user?.email).toBe(`phone-${phone}@users.getbrick.local`);
+
+    // signUpOnVerification users have no password credential; re-verification references the same user
+    await expect(
+      castApi(auth).verifyPhoneNumber({ body: { phoneNumber: phone, code: sent[0].code } }),
+    ).rejects.toThrow();
+  });
+
+  it("rejects an OTP with insufficient length policy and wrong codes", async () => {
+    const { auth, sent } = smsHarness();
+    const phone = "+8613900000002";
+    await castApi(auth).sendPhoneNumberOTP({ body: { phoneNumber: phone } });
+    await expect(
+      (auth.api as unknown as { verifyPhoneNumber: (args: unknown) => Promise<unknown> }).verifyPhoneNumber({
+        body: { phoneNumber: phone, code: sent[0].code === "999999" ? "000000" : "999999" },
+      }),
+    ).rejects.toThrow();
+  });
+});
+
+// helper to access plugin endpoints lost by the inferred betterAuth return type
+function castApi(auth: unknown) {
+  return (auth as { api: Record<string, (...args: unknown[]) => Promise<unknown>> }).api;
+}
+
