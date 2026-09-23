@@ -41,6 +41,12 @@ What you get out of the box:
 - audit events (`user.created`, `session.created`, `session.revoked`, ...) with sensitive-field redaction
 - session guard + `@CurrentUser()` / `@GetbrickRoles()`
 - TOTP 2FA, lockout policy, session policy — all from `getbrick.config.ts`
+- RBAC: role inheritance, wildcard permissions (`project:write:own`), data scope — see [docs/rbac.md](docs/rbac.md)
+- admin plugin: role management, ban, impersonation via better-auth admin endpoints
+
+## Examples
+
+- [examples/nestjs-postgres](examples/nestjs-postgres) — NestJS + real Postgres, e2e verified (migration + signup + guarded routes)
 
 ## Planned packages
 

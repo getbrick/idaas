@@ -1,5 +1,5 @@
 import { betterAuth, type BetterAuthOptions } from "better-auth";
-import { twoFactor } from "better-auth/plugins";
+import { admin, twoFactor } from "better-auth/plugins";
 import type { IdaasConfig, IdaasConfigInput } from "./config.js";
 import { defineIdaasConfig } from "./config.js";
 import { buildTableMap } from "./tables.js";
@@ -58,12 +58,21 @@ export function createIdaas(input: CreateIdaasInput) {
       enabled: true,
       window: config.lockout.windowSeconds,
       max: config.lockout.maxAttempts,
+      customRules: {
+        "/sign-up/*": { window: config.lockout.windowSeconds, max: config.lockout.maxAttempts },
+        "/sign-in/*": { window: config.lockout.windowSeconds, max: config.lockout.maxAttempts },
+        "/change-password": { window: config.lockout.windowSeconds, max: config.lockout.maxAttempts },
+        "/change-email": { window: config.lockout.windowSeconds, max: config.lockout.maxAttempts },
+      },
     },
   };
 
   const merged = deepMerge(options, input.extraOptions ?? {}) as BetterAuthOptions;
 
   const plugins: any[] = [];
+  if (config.features.admin) {
+    plugins.push(admin());
+  }
   if (config.features.twoFactor) {
     plugins.push(twoFactor({ twoFactorTable: tables.twoFactor }));
   }

@@ -1,5 +1,7 @@
 export const GETBRICK_AUTH = "GETBRICK_AUTH";
 export const GETBRICK_ROLES = "getbrick:roles";
+export const GETBRICK_PERMISSIONS = "getbrick:permissions";
+export const GETBRICK_RBAC = "GETBRICK_RBAC";
 
 export interface GetbrickAuthLike {
   api: {

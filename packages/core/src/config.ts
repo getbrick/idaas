@@ -21,6 +21,15 @@ export const auditConfigSchema = z.object({
   sink: z.custom<AuditSink>().optional(),
 });
 
+export const rbacRoleSchema = z.object({
+  extends: z.array(z.string()).default([]),
+  permissions: z.array(z.string()).default([]),
+});
+
+export const rbacConfigSchema = z.object({
+  roles: z.record(z.string(), rbacRoleSchema).default({}),
+});
+
 export const idaasConfigSchema = z.object({
   appName: z.string().min(1).default("Getbrick"),
   baseURL: z.string().url().optional(),
@@ -35,6 +44,7 @@ export const idaasConfigSchema = z.object({
   password: passwordPolicySchema.default({}),
   lockout: lockoutPolicySchema.default({}),
   audit: auditConfigSchema.default({}),
+  rbac: rbacConfigSchema.default({}),
   features: z
     .object({
       twoFactor: z.boolean().default(true),
