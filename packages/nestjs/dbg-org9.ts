@@ -1,0 +1,16 @@
+import { memoryAdapter } from "better-auth/adapters/memory";
+import { buildTableMap, createIdaas } from "@getbrick/idaas-core";
+const tables = buildTableMap();
+const data: Record<string, any[]> = {};
+for (const name of Object.values(tables)) data[name] = [];
+const auth = createIdaas({ config: { appName: "D", baseURL: "http://localhost", features: { organization: true } }, database: memoryAdapter(data as any) });
+const signUp = await auth.handler(new Request("http://localhost/api/auth/sign-up/email", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "ceo@example.com", password: "supersecret123", name: "CEO" }) }));
+const cookies = signUp.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+const org = await auth.handler(new Request("http://localhost/api/auth/organization/create", { method: "POST", headers: { "content-type": "application/json", cookie: cookies, origin: "http://localhost" }, body: JSON.stringify({ name: "Acme", slug: "acme" }) }));
+console.log("org", org.status);
+const session = await auth.api.getSession({ headers: new Headers({ cookie: cookies }) });
+console.log("session keys", Object.keys((session as any)?.session ?? {}));
+console.log("member", (session as any)?.member);
+console.log("organization", (session as any)?.organization);
+const active = await (auth.api as any).getActiveMember?.({ headers: new Headers({ cookie: cookies }) });
+console.log("active", active?.id ?? active);

@@ -47,4 +47,44 @@ describe("createIdaas smoke", () => {
       }),
     ).rejects.toThrow();
   });
+
+  it("supports organization create and member flows with mapped tables", async () => {
+    const sink = createMemoryAuditSink();
+    const auth = createIdaas({
+      config: { appName: "TestApp", features: { organization: true } },
+      database: memoryDb(),
+      auditSink: sink,
+    });
+
+    const signUp = await auth.api.signUpEmail({
+      body: { email: "owner@example.com", password: "supersecret123", name: "Owner" },
+    });
+    const signIn = await auth.api.signInEmail({
+      body: { email: "owner@example.com", password: "supersecret123" },
+      returnHeaders: true,
+    });
+    const headers = new Headers({
+      cookie: signIn.headers
+        .getSetCookie()
+        .map((c) => c.split(";")[0])
+        .join("; "),
+    });
+
+    const org = await (auth.api as unknown as { createOrganization: (args: unknown) => Promise<{ name?: string; id?: string }> }).createOrganization({
+      body: { name: "Acme", slug: "acme" },
+      headers,
+    });
+    expect(org?.name).toBe("Acme");
+
+    await auth.api.signUpEmail({
+      body: { email: "member@example.com", password: "supersecret123", name: "Member" },
+    });
+    const invite = await (auth.api as unknown as { createInvitation: (args: unknown) => Promise<{ email?: string }> }).createInvitation({
+      body: { email: "member@example.com", role: "member", organizationId: org!.id },
+      headers,
+    });
+    expect(invite?.email).toBe("member@example.com");
+
+    expect(signUp.user.email).toBe("owner@example.com");
+  });
 });

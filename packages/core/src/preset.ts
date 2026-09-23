@@ -1,5 +1,5 @@
 import { betterAuth, type BetterAuthOptions } from "better-auth";
-import { admin, twoFactor } from "better-auth/plugins";
+import { admin, organization, twoFactor } from "better-auth/plugins";
 import type { IdaasConfig, IdaasConfigInput } from "./config.js";
 import { defineIdaasConfig } from "./config.js";
 import { buildTableMap } from "./tables.js";
@@ -75,6 +75,17 @@ export function createIdaas(input: CreateIdaasInput) {
   }
   if (config.features.twoFactor) {
     plugins.push(twoFactor({ twoFactorTable: tables.twoFactor }));
+  }
+  if (config.features.organization) {
+    plugins.push(
+      organization({
+        schema: {
+          organization: { modelName: tables.organization },
+          member: { modelName: tables.member },
+          invitation: { modelName: tables.invitation },
+        },
+      }),
+    );
   }
   if (config.features.organization) {
     // W2: 权限增强/组织树插件在此接入

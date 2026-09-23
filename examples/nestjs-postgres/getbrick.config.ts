@@ -4,7 +4,7 @@ export const idaas = defineIdaasConfig({
   appName: "Getbrick Example",
   session: { expiresInDays: 7, storeInDatabase: true },
   password: { minLength: 8 },
-  features: { twoFactor: true },
+  features: { twoFactor: true, organization: true },
   rbac: {
     roles: {
       member: { extends: ["user"], permissions: ["project:read:own"] },

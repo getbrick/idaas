@@ -13,6 +13,8 @@ import {
   CurrentUser,
   DataScope,
   EffectivePermissions,
+  CurrentOrganization,
+  CurrentMember,
   GetDataScope,
   GetbrickPermissions,
   GetbrickRoles,
@@ -45,6 +47,15 @@ class ProjectsController {
   write() {
     return { ok: true };
   }
+
+  @Get("org")
+  @GetbrickPermissions("project:read")
+  org(
+    @CurrentOrganization() organization: Record<string, unknown> | undefined,
+    @CurrentMember() member: Record<string, unknown> | undefined,
+  ) {
+    return { slug: organization?.slug, memberRole: member?.role };
+  }
 }
 
 const TEST_ROLE_GRAPH: RoleGraph = {
@@ -54,12 +65,12 @@ const TEST_ROLE_GRAPH: RoleGraph = {
   admin: { extends: ["owner"], permissions: ["*:*"] },
 };
 
-function createAuth() {
+function createAuth(features: Record<string, boolean> = {}) {
   const tables = buildTableMap();
   const data: Record<string, Record<string, unknown>[]> = {};
   for (const name of Object.values(tables)) data[name] = [];
   const auth = createIdaas({
-    config: { appName: "E2E", lockout: { maxAttempts: 1000, windowSeconds: 600 } },
+    config: { appName: "E2E", baseURL: "http://localhost", lockout: { maxAttempts: 1000, windowSeconds: 600 }, features },
     database: memoryAdapter(data as any),
   });
   return { auth, data, userTable: tables.user };
@@ -169,6 +180,43 @@ describe("nestjs adapter e2e", () => {
       .get("/projects/admin-only")
       .set("Cookie", adminCookie);
     expect(adminRoute.status).toBe(200);
+
+    await app.close();
+  });
+
+  it("merges organization member roles into effective permissions", async () => {
+    const { auth } = createAuth({ organization: true });
+    const moduleRef = await Test.createTestingModule({
+      imports: [GetbrickIdaasModule.forRoot({ auth, rbac: TEST_ROLE_GRAPH })],
+      controllers: [MeController, ProjectsController],
+      providers: [{ provide: APP_GUARD, useClass: GetbrickAuthGuard }],
+    }).compile();
+    const app = moduleRef.createNestApplication();
+    app.use(express.json());
+    await app.init();
+    const server = app.getHttpServer();
+
+    const res = await request(server)
+      .post("/api/auth/sign-up/email")
+      .send({ email: "ceo@example.com", password: "supersecret123", name: "CEO" });
+    expect(res.status).toBe(200);
+    const cookie = ((res.headers["set-cookie"] ?? []) as unknown as string[])
+      .map((c) => c.split(";")[0])
+      .join("; ");
+
+    const org = await request(server)
+      .post("/api/auth/organization/create")
+      .set("Cookie", cookie)
+      .set("Origin", "http://localhost")
+      .send({ name: "Acme", slug: "acme" });
+    expect(org.status).toBe(200);
+
+    const before = await request(server)
+      .get("/projects/org")
+      .set("Cookie", cookie);
+    expect(before.status).toBe(200);
+    expect(before.body.slug).toBe("acme");
+    expect(before.body.memberRole).toBe("owner");
 
     await app.close();
   });

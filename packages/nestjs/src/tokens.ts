@@ -6,6 +6,8 @@ export const GETBRICK_RBAC = "GETBRICK_RBAC";
 export interface GetbrickAuthLike {
   api: {
     getSession(args: { headers: Headers; query?: Record<string, string> }): Promise<unknown>;
+    getActiveMember?(args: { headers: Headers; query?: Record<string, string> }): Promise<unknown>;
+    getFullOrganization?(args: { headers: Headers; query?: Record<string, string> }): Promise<unknown>;
   };
   handler(request: Request): Promise<Response>;
 }

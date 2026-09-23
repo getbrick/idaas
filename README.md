@@ -43,18 +43,20 @@ What you get out of the box:
 - TOTP 2FA, lockout policy, session policy — all from `getbrick.config.ts`
 - RBAC: role inheritance, wildcard permissions (`project:write:own`), data scope — see [docs/rbac.md](docs/rbac.md)
 - admin plugin: role management, ban, impersonation via better-auth admin endpoints
+- organizations: multi-tenant orgs with member/invitation tables (`gb_idaas_organization`, `gb_idaas_member`, `gb_idaas_invitation`), member roles merged into effective permissions
+- white-label React UI: `@getbrick/idaas-ui` — themed `AuthForm` / `AuthCard` / `SignOutButton`
 
 ## Examples
 
 - [examples/nestjs-postgres](examples/nestjs-postgres) — NestJS + real Postgres, e2e verified (migration + signup + guarded routes)
 
-## Planned packages
+## Packages
 
 | Package | Scope |
 |---------|-------|
-| `@getbrick/idaas-core` | Framework-free kernel: auth, token, rbac, org, policy, audit |
-| `@getbrick/idaas-nestjs` | NestJS adapter: guards, decorators, admin module |
-| `@getbrick/idaas-ui` | Pluggable login/admin UI components (white-label) |
+| `@getbrick/idaas-core` | Framework-free kernel: auth, RBAC, organizations, policy, audit |
+| `@getbrick/idaas-nestjs` | NestJS adapter: guards, decorators, org context |
+| `@getbrick/idaas-ui` | White-label React login UI (theme tokens, CSS vars) |
 | `@getbrick/idaas-cli` | `init` wizard, migrations, `upgrade` checks |
 
 ## License

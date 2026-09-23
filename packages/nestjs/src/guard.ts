@@ -10,7 +10,7 @@ import {
   type RoleGraph,
 } from "@getbrick/idaas-core";
 import { GETBRICK_AUTH, GETBRICK_PERMISSIONS, GETBRICK_RBAC, GETBRICK_ROLES, type GetbrickAuthLike } from "./tokens.js";
-import { getSessionFromRequest } from "./request.js";
+import { getSessionFromRequest, headersFromRequest } from "./request.js";
 
 @Injectable()
 export class GetbrickAuthGuard implements CanActivate {
@@ -28,8 +28,25 @@ export class GetbrickAuthGuard implements CanActivate {
     }
     req.getbrickSession = session;
 
+    const activeOrgId = session.session?.activeOrganizationId;
+    if (activeOrgId && typeof activeOrgId === "string") {
+      const headers = headersFromRequest(req);
+      try {
+        const [member, organization] = await Promise.all([
+          this.auth.api.getActiveMember?.({ headers }),
+          this.auth.api.getFullOrganization?.({ headers }),
+        ]);
+        if (member && typeof member === "object") session.member = member as Record<string, unknown>;
+        if (organization && typeof organization === "object") session.organization = organization as Record<string, unknown>;
+      } catch {
+        // organization enrichment is best-effort; guards must not fail on it
+      }
+    }
+
     const graph = this.roleGraph ?? DEFAULT_ROLE_GRAPH;
     const userRoles = rolesFromUser(session.user);
+    const memberRole = typeof session.member?.role === "string" ? session.member.role : undefined;
+    if (memberRole) userRoles.push(memberRole);
     const effectivePermissions = new Set<string>();
     for (const role of userRoles) {
       for (const permission of resolveEffectivePermissions(graph, role)) {

@@ -26,6 +26,18 @@ export const EffectivePermissions = createParamDecorator(
   },
 );
 
+export const CurrentOrganization = createParamDecorator(
+  (_data: unknown, ctx: ExecutionContext): Record<string, unknown> | undefined => {
+    return ctx.switchToHttp().getRequest<Record<string, any>>().getbrickSession?.organization;
+  },
+);
+
+export const CurrentMember = createParamDecorator(
+  (_data: unknown, ctx: ExecutionContext): Record<string, unknown> | undefined => {
+    return ctx.switchToHttp().getRequest<Record<string, any>>().getbrickSession?.member;
+  },
+);
+
 export const GetDataScope = createParamDecorator(
   (resource: string, ctx: ExecutionContext): DataScopeValue => {
     const req = ctx.switchToHttp().getRequest<Record<string, any>>();

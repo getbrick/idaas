@@ -13,10 +13,17 @@ export function headersFromRequest(req: { headers?: Record<string, unknown> }): 
   return out;
 }
 
+export interface GetbrickSession {
+  user?: Record<string, unknown>;
+  session?: Record<string, unknown>;
+  member?: Record<string, unknown>;
+  organization?: Record<string, unknown>;
+}
+
 export async function getSessionFromRequest(
   auth: GetbrickAuthLike,
   req: { headers?: Record<string, unknown> },
-): Promise<{ user?: Record<string, unknown>; session?: Record<string, unknown> } | null> {
+): Promise<GetbrickSession | null> {
   const result = await auth.api.getSession({ headers: headersFromRequest(req) });
-  return (result as { user?: Record<string, unknown>; session?: Record<string, unknown> }) ?? null;
+  return (result as GetbrickSession) ?? null;
 }
