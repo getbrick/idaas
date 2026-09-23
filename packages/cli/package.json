@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "license": "MIT",
   "type": "module",
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "getbrick": "./bin/getbrick.mjs"
   },
@@ -12,7 +19,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@getbrick/idaas-core": "workspace:*"
+    "@getbrick/idaas-core": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -47,6 +47,9 @@ export function createIdaas(input: CreateIdaasInput) {
     account: {
       modelName: tables.account,
     },
+    verification: {
+      modelName: tables.verification,
+    },
     advanced: {
       cookiePrefix: "getbrick",
     },
@@ -61,7 +64,9 @@ export function createIdaas(input: CreateIdaasInput) {
   const merged = deepMerge(options, input.extraOptions ?? {}) as BetterAuthOptions;
 
   const plugins: any[] = [];
-  if (config.features.twoFactor) plugins.push(twoFactor());
+  if (config.features.twoFactor) {
+    plugins.push(twoFactor({ twoFactorTable: tables.twoFactor }));
+  }
   if (config.features.organization) {
     // W2: 权限增强/组织树插件在此接入
   }

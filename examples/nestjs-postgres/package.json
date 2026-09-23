@@ -1,0 +1,33 @@
+{
+  "name": "@getbrick/example-nestjs-postgres",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "migrate": "node --experimental-strip-types src/migrate.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@getbrick/idaas-core": "workspace:*",
+    "@getbrick/idaas-nestjs": "workspace:*",
+    "better-auth": "^1.2.0",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/testing": "^11.0.0",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.11.0",
+    "@types/supertest": "^6.0.0",
+    "express": "^5.1.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.0",
+    "supertest": "^7.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  }
+}

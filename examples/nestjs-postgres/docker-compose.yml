@@ -1,0 +1,8 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: gbtest
+      POSTGRES_DB: getbrick
+    ports:
+      - "54329:5432"
