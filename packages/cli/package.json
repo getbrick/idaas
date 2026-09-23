@@ -3,5 +3,20 @@
   "version": "0.1.0",
   "license": "MIT",
   "type": "module",
-  "main": "src/index.ts"
+  "bin": {
+    "getbrick": "./bin/getbrick.mjs"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@getbrick/idaas-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  }
 }
