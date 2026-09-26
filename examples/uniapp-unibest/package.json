@@ -1,0 +1,46 @@
+{
+  "name": "@getbrick/example-uniapp-unibest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=20.19.0",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "dev": "uni",
+    "dev:h5": "uni",
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "dev:app": "uni -p app",
+    "build": "uni build",
+    "build:h5": "uni build",
+    "build:mp-weixin": "uni build -p mp-weixin",
+    "build:app": "uni build -p app",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck:core": "tsc --noEmit -p tsconfig.core.json",
+    "typecheck": "pnpm typecheck:core && vue-tsc --noEmit -p tsconfig.json",
+    "check": "pnpm typecheck && pnpm test"
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-4070620250821001",
+    "@dcloudio/uni-app-plus": "3.0.0-4070620250821001",
+    "@dcloudio/uni-components": "3.0.0-4070620250821001",
+    "@dcloudio/uni-h5": "3.0.0-4070620250821001",
+    "@dcloudio/uni-mp-weixin": "3.0.0-4070620250821001",
+    "pinia": "2.0.36",
+    "vue": "3.4.21",
+    "vue-router": "4.5.1"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "^3.4.8",
+    "@dcloudio/vite-plugin-uni": "3.0.0-4070620250821001",
+    "@types/node": "^24.0.0",
+    "sass": "^1.86.0",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.14",
+    "vitest": "^3.2.7",
+    "vue-tsc": "^2.2.12"
+  }
+}

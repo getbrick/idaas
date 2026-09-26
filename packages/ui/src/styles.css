@@ -88,3 +88,781 @@
   font-size: 14px;
   cursor: pointer;
 }
+
+.gb-admin__shell {
+  font-family: var(--gb-font, system-ui, sans-serif);
+  color: var(--gb-text, #0f172a);
+}
+
+.gb-admin__shell__header,
+.gb-admin__application-list__header,
+.gb-admin__application-platform-list__header,
+.gb-admin__application-client-list__header,
+.gb-admin__application-external-identity-list__header,
+.gb-admin__user-list__header,
+.gb-admin__role-list__header,
+.gb-admin__audit-event-list__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.gb-admin__shell__title,
+.gb-admin__application-list__heading,
+.gb-admin__application-platform-list__heading,
+.gb-admin__application-client-list__heading,
+.gb-admin__application-external-identity-list__heading,
+.gb-admin__user-list__heading,
+.gb-admin__role-list__heading,
+.gb-admin__audit-event-list__heading {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.gb-admin__shell__description,
+.gb-admin__list-state__empty-message,
+.gb-admin__list-state__error-message {
+  color: var(--gb-text-muted, #64748b);
+}
+
+.gb-admin__shell__navigation {
+  margin-bottom: 20px;
+}
+
+.gb-admin__shell__navigation-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.gb-admin__shell__navigation-link,
+.gb-admin__shell__navigation-button,
+.gb-admin__application-list__pagination button,
+.gb-admin__application-platform-list__pagination button,
+.gb-admin__application-client-list__pagination button,
+.gb-admin__application-external-identity-list__pagination button,
+.gb-admin__application-platform-list__control,
+.gb-admin__application-client-list__control {
+  border: 1px solid var(--gb-border, #e2e8f0);
+  border-radius: calc(var(--gb-radius, 10px) / 2);
+  background: var(--gb-surface, #fff);
+  color: var(--gb-text, #0f172a);
+  font: inherit;
+  cursor: pointer;
+}
+
+.gb-admin__shell__navigation-link,
+.gb-admin__shell__navigation-button,
+.gb-admin__application-list__pagination button,
+.gb-admin__application-platform-list__pagination button,
+.gb-admin__application-client-list__pagination button,
+.gb-admin__application-external-identity-list__pagination button,
+.gb-admin__application-platform-list__control,
+.gb-admin__application-client-list__control {
+  padding: 7px 11px;
+  font-size: 13px;
+}
+
+.gb-admin__shell__navigation-link[aria-current="page"],
+.gb-admin__shell__navigation-button[aria-current="page"] {
+  border-color: var(--_primary, var(--gb-primary, #4f46e5));
+  background: color-mix(in srgb, var(--_primary, var(--gb-primary, #4f46e5)) 10%, transparent);
+}
+
+.gb-admin__shell__navigation-link[aria-disabled="true"],
+.gb-admin__shell__navigation-button:disabled,
+.gb-admin__application-list__pagination button:disabled,
+.gb-admin__application-platform-list__pagination button:disabled,
+.gb-admin__application-client-list__pagination button:disabled,
+.gb-admin__application-external-identity-list__pagination button:disabled,
+.gb-admin__application-platform-list__control:disabled,
+.gb-admin__application-client-list__control:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.gb-admin__application-list,
+.gb-admin__application-platform-list,
+.gb-admin__application-client-list,
+.gb-admin__application-external-identity-list,
+.gb-admin__user-list,
+.gb-admin__role-list,
+.gb-admin__audit-event-list {
+  margin: 0 0 24px;
+}
+
+.gb-admin__application-list__table,
+.gb-admin__application-platform-list__table,
+.gb-admin__application-client-list__table,
+.gb-admin__application-external-identity-list__table,
+.gb-admin__user-list__table,
+.gb-admin__role-list__table,
+.gb-admin__audit-event-list__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.gb-admin__application-list__table,
+.gb-admin__application-platform-list__table,
+.gb-admin__application-client-list__table,
+.gb-admin__application-external-identity-list__table,
+.gb-admin__user-list__table,
+.gb-admin__role-list__table,
+.gb-admin__audit-event-list__table {
+  overflow-x: auto;
+}
+
+.gb-admin__application-list__caption,
+.gb-admin__application-platform-list__caption,
+.gb-admin__application-client-list__caption,
+.gb-admin__application-external-identity-list__caption,
+.gb-admin__user-list__caption,
+.gb-admin__role-list__caption,
+.gb-admin__audit-event-list__caption {
+  padding: 0 0 8px;
+  color: var(--gb-text-muted, #64748b);
+  text-align: left;
+  caption-side: top;
+}
+
+.gb-admin__application-list th,
+.gb-admin__application-platform-list th,
+.gb-admin__application-client-list th,
+.gb-admin__application-external-identity-list th,
+.gb-admin__user-list th,
+.gb-admin__role-list th,
+.gb-admin__audit-event-list th,
+.gb-admin__application-list td,
+.gb-admin__application-platform-list td,
+.gb-admin__application-client-list td,
+.gb-admin__application-external-identity-list td,
+.gb-admin__user-list td,
+.gb-admin__role-list td,
+.gb-admin__audit-event-list td {
+  border-bottom: 1px solid var(--gb-border, #e2e8f0);
+  padding: 9px 10px;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.gb-admin__application-list th,
+.gb-admin__application-platform-list th,
+.gb-admin__application-client-list th,
+.gb-admin__application-external-identity-list th,
+.gb-admin__user-list th,
+.gb-admin__role-list th,
+.gb-admin__audit-event-list th {
+  color: var(--gb-text-muted, #64748b);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.gb-admin__application-list__row:hover,
+.gb-admin__application-platform-list__row:hover,
+.gb-admin__application-client-list__row:hover,
+.gb-admin__application-external-identity-list__row:hover,
+.gb-admin__user-list__row:hover,
+.gb-admin__role-list__row:hover,
+.gb-admin__audit-event-list__row:hover {
+  background: var(--gb-surface-muted, #f8fafc);
+}
+
+.gb-admin__application-list__readiness,
+.gb-admin__application-platform-list__readiness,
+.gb-admin__application-client-list__readiness,
+.gb-admin__application-platform-list__secret-status,
+.gb-admin__application-client-list__secret-status,
+.gb-admin__application-list__lifecycle-status,
+.gb-admin__application-platform-list__lifecycle-status,
+.gb-admin__application-client-list__lifecycle-status,
+.gb-admin__application-list__effective-status,
+.gb-admin__application-platform-list__effective-status,
+.gb-admin__application-client-list__effective-status {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: var(--gb-surface-muted, #f1f5f9);
+  color: var(--gb-text-muted, #475569);
+  font-size: 12px;
+}
+
+.gb-admin__application-list__readiness[data-readiness="ready"],
+.gb-admin__application-platform-list__readiness[data-readiness="ready"],
+.gb-admin__application-client-list__readiness[data-readiness="ready"] {
+  background: color-mix(in srgb, var(--gb-success, #16a34a) 12%, transparent);
+  color: var(--gb-success, #15803d);
+}
+
+.gb-admin__application-list__readiness[data-readiness="not_ready"],
+.gb-admin__application-platform-list__readiness[data-readiness="not_ready"],
+.gb-admin__application-client-list__readiness[data-readiness="not_ready"],
+.gb-admin__application-list__effective-status[data-effective-status="not_ready"],
+.gb-admin__application-platform-list__effective-status[data-effective-status="not_ready"],
+.gb-admin__application-client-list__effective-status[data-effective-status="not_ready"] {
+  background: color-mix(in srgb, var(--gb-warning, #d97706) 12%, transparent);
+  color: var(--gb-warning, #b45309);
+}
+
+.gb-admin__application-list__readiness-checks,
+.gb-admin__application-platform-list__readiness-checks,
+.gb-admin__application-client-list__readiness-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  color: var(--gb-text-muted, #64748b);
+  font-size: 11px;
+  white-space: normal;
+}
+
+.gb-admin__application-list__etag,
+.gb-admin__application-platform-list__etag,
+.gb-admin__application-client-list__etag,
+.gb-admin__application-platform-list__jwks-uri,
+.gb-admin__application-client-list__jwks-uri {
+  color: var(--gb-text-muted, #64748b);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.gb-admin__application-list__pagination,
+.gb-admin__application-platform-list__pagination,
+.gb-admin__application-client-list__pagination,
+.gb-admin__application-external-identity-list__pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.gb-admin__application-list__page-status,
+.gb-admin__application-platform-list__page-status,
+.gb-admin__application-client-list__page-status,
+.gb-admin__application-external-identity-list__page-status {
+  color: var(--gb-text-muted, #64748b);
+  font-size: 12px;
+}
+
+.gb-admin__application-platform-list__row-actions,
+.gb-admin__application-client-list__row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gb-admin__list-state {
+  padding: 18px 0;
+  text-align: center;
+}
+
+.gb-admin__list-state__empty-title,
+.gb-admin__list-state__error-title {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.gb-admin__list-state__error-message {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--gb-danger, #dc2626);
+}
+
+.gb-admin__list-state__retry {
+  border: 1px solid var(--gb-border, #e2e8f0);
+  border-radius: calc(var(--gb-radius, 10px) / 2);
+  padding: 6px 10px;
+  background: var(--gb-surface, #fff);
+  color: var(--gb-text, #0f172a);
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .gb-admin__shell__header,
+  .gb-admin__application-list__header,
+  .gb-admin__application-platform-list__header,
+  .gb-admin__application-client-list__header,
+  .gb-admin__application-external-identity-list__header,
+  .gb-admin__user-list__header,
+  .gb-admin__role-list__header,
+  .gb-admin__audit-event-list__header {
+    flex-direction: column;
+  }
+
+  .gb-admin__application-list__table,
+  .gb-admin__application-platform-list__table,
+  .gb-admin__application-client-list__table,
+  .gb-admin__application-external-identity-list__table,
+  .gb-admin__user-list__table,
+  .gb-admin__role-list__table,
+  .gb-admin__audit-event-list__table {
+    display: block;
+  }
+}
+
+.gb-open-platform__developer-portal-shell,
+.gb-open-platform__operations-shell,
+.gb-open-platform__webhook-endpoint-list,
+.gb-open-platform__open-platform-audit-event-list,
+.gb-open-platform__marketplace-listing-card,
+.gb-open-platform__invoice-table,
+.gb-open-platform__compliance-data-asset-list,
+.gb-open-platform__compliance-privacy-request-list,
+.gb-open-platform__compliance-report-panel,
+.gb-open-platform__open-platform-outbox-status-list,
+.gb-open-platform__open-platform-domain-event-monitor {
+  font-family: var(--gb-font, system-ui, sans-serif);
+  color: var(--gb-text, #0f172a);
+}
+
+.gb-open-platform__developer-portal-shell__header,
+.gb-open-platform__operations-shell__header,
+.gb-open-platform__webhook-endpoint-list__header,
+.gb-open-platform__open-platform-audit-event-list__header,
+.gb-open-platform__invoice-table__header,
+.gb-open-platform__compliance-data-asset-list__header,
+.gb-open-platform__compliance-privacy-request-list__header,
+.gb-open-platform__compliance-report-panel__header,
+.gb-open-platform__open-platform-outbox-status-list__header,
+.gb-open-platform__marketplace-listing-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.gb-open-platform__developer-portal-shell__title,
+.gb-open-platform__operations-shell__title,
+.gb-open-platform__webhook-endpoint-list__heading,
+.gb-open-platform__open-platform-audit-event-list__heading,
+.gb-open-platform__invoice-table__heading,
+.gb-open-platform__compliance-data-asset-list__heading,
+.gb-open-platform__compliance-privacy-request-list__heading,
+.gb-open-platform__compliance-report-panel__heading,
+.gb-open-platform__compliance-report-panel__subheading,
+.gb-open-platform__open-platform-outbox-status-list__heading,
+.gb-open-platform__marketplace-listing-card__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.gb-open-platform__compliance-report-panel__subheading {
+  font-size: 14px;
+}
+
+.gb-open-platform__developer-portal-shell__description,
+.gb-open-platform__operations-shell__description,
+.gb-open-platform__webhook-endpoint-list__caption,
+.gb-open-platform__open-platform-audit-event-list__caption,
+.gb-open-platform__invoice-table__caption,
+.gb-open-platform__compliance-data-asset-list__caption,
+.gb-open-platform__compliance-privacy-request-list__caption,
+.gb-open-platform__compliance-report-panel__caption,
+.gb-open-platform__open-platform-outbox-status-list__caption,
+.gb-open-platform__state__empty-message {
+  color: var(--gb-text-muted, #64748b);
+}
+
+.gb-open-platform__developer-portal-shell__navigation,
+.gb-open-platform__operations-shell__navigation {
+  margin-bottom: 20px;
+}
+
+.gb-open-platform__developer-portal-shell__navigation-list,
+.gb-open-platform__operations-shell__navigation-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.gb-open-platform__developer-portal-shell__navigation-link,
+.gb-open-platform__developer-portal-shell__navigation-button,
+.gb-open-platform__operations-shell__navigation-link,
+.gb-open-platform__operations-shell__navigation-button,
+.gb-open-platform__webhook-endpoint-list__pagination button,
+.gb-open-platform__open-platform-audit-event-list__pagination button,
+.gb-open-platform__invoice-table__pagination button,
+.gb-open-platform__compliance-data-asset-list__pagination button,
+.gb-open-platform__compliance-privacy-request-list__pagination button,
+.gb-open-platform__open-platform-outbox-status-list__pagination button,
+.gb-open-platform__open-platform-domain-event-monitor__retry,
+.gb-open-platform__state__retry {
+  border: 1px solid var(--gb-border, #e2e8f0);
+  border-radius: calc(var(--gb-radius, 10px) / 2);
+  padding: 7px 11px;
+  background: var(--gb-surface, #fff);
+  color: var(--gb-text, #0f172a);
+  font: inherit;
+  cursor: pointer;
+}
+
+.gb-open-platform__developer-portal-shell__navigation-link,
+.gb-open-platform__developer-portal-shell__navigation-button,
+.gb-open-platform__operations-shell__navigation-link,
+.gb-open-platform__operations-shell__navigation-button {
+  font-size: 13px;
+}
+
+.gb-open-platform__developer-portal-shell__navigation-link[aria-current="page"],
+.gb-open-platform__developer-portal-shell__navigation-button[aria-current="page"],
+.gb-open-platform__operations-shell__navigation-link[aria-current="page"],
+.gb-open-platform__operations-shell__navigation-button[aria-current="page"] {
+  border-color: var(--gb-primary, #4f46e5);
+  background: color-mix(in srgb, var(--gb-primary, #4f46e5) 10%, transparent);
+}
+
+.gb-open-platform__developer-portal-shell__navigation-button:disabled,
+.gb-open-platform__operations-shell__navigation-button:disabled,
+.gb-open-platform__webhook-endpoint-list__pagination button:disabled,
+.gb-open-platform__open-platform-audit-event-list__pagination button:disabled,
+.gb-open-platform__invoice-table__pagination button:disabled,
+.gb-open-platform__compliance-data-asset-list__pagination button:disabled,
+.gb-open-platform__compliance-privacy-request-list__pagination button:disabled,
+.gb-open-platform__open-platform-outbox-status-list__pagination button:disabled,
+.gb-open-platform__open-platform-domain-event-monitor__retry:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.gb-open-platform__webhook-endpoint-list,
+.gb-open-platform__open-platform-audit-event-list,
+.gb-open-platform__invoice-table,
+.gb-open-platform__compliance-data-asset-list,
+.gb-open-platform__compliance-privacy-request-list,
+.gb-open-platform__compliance-report-panel,
+.gb-open-platform__open-platform-outbox-status-list,
+.gb-open-platform__open-platform-domain-event-monitor,
+.gb-open-platform__marketplace-listing-card {
+  margin: 0 0 24px;
+}
+
+.gb-open-platform__webhook-endpoint-list__table,
+.gb-open-platform__open-platform-audit-event-list__table,
+.gb-open-platform__invoice-table__table,
+.gb-open-platform__compliance-data-asset-list__table,
+.gb-open-platform__compliance-privacy-request-list__table,
+.gb-open-platform__open-platform-outbox-status-list__table {
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.gb-open-platform__webhook-endpoint-list__caption,
+.gb-open-platform__open-platform-audit-event-list__caption,
+.gb-open-platform__invoice-table__caption,
+.gb-open-platform__compliance-data-asset-list__caption,
+.gb-open-platform__compliance-privacy-request-list__caption,
+.gb-open-platform__open-platform-outbox-status-list__caption {
+  padding: 0 0 8px;
+  color: var(--gb-text-muted, #64748b);
+  text-align: left;
+  caption-side: top;
+}
+
+.gb-open-platform__webhook-endpoint-list th,
+.gb-open-platform__open-platform-audit-event-list th,
+.gb-open-platform__invoice-table th,
+.gb-open-platform__compliance-data-asset-list th,
+.gb-open-platform__compliance-privacy-request-list th,
+.gb-open-platform__open-platform-outbox-status-list th,
+.gb-open-platform__webhook-endpoint-list td,
+.gb-open-platform__open-platform-audit-event-list td,
+.gb-open-platform__invoice-table td,
+.gb-open-platform__compliance-data-asset-list td,
+.gb-open-platform__compliance-privacy-request-list td,
+.gb-open-platform__open-platform-outbox-status-list td {
+  border-bottom: 1px solid var(--gb-border, #e2e8f0);
+  padding: 9px 10px;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.gb-open-platform__webhook-endpoint-list th,
+.gb-open-platform__open-platform-audit-event-list th,
+.gb-open-platform__invoice-table th,
+.gb-open-platform__compliance-data-asset-list th,
+.gb-open-platform__compliance-privacy-request-list th,
+.gb-open-platform__open-platform-outbox-status-list th {
+  color: var(--gb-text-muted, #64748b);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.gb-open-platform__webhook-endpoint-list__row:hover,
+.gb-open-platform__open-platform-audit-event-list__row:hover,
+.gb-open-platform__invoice-table__row:hover,
+.gb-open-platform__compliance-data-asset-list__row:hover,
+.gb-open-platform__compliance-privacy-request-list__row:hover,
+.gb-open-platform__open-platform-outbox-status-list__row:hover {
+  background: var(--gb-surface-muted, #f8fafc);
+}
+
+.gb-open-platform__webhook-endpoint-list__endpoint,
+.gb-open-platform__invoice-table__invoice-id {
+  color: var(--gb-text-muted, #64748b);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.gb-open-platform__invoice-table__line-summary {
+  display: block;
+  margin-top: 3px;
+  color: var(--gb-text-muted, #64748b);
+  font-size: 11px;
+  white-space: normal;
+}
+
+.gb-open-platform__webhook-endpoint-list__status,
+.gb-open-platform__open-platform-audit-event-list__cell [data-audit-outcome],
+.gb-open-platform__invoice-table__cell [data-invoice-status],
+.gb-open-platform__compliance-data-asset-list__status,
+.gb-open-platform__compliance-privacy-request-list__status,
+.gb-open-platform__open-platform-outbox-status-list__status,
+.gb-open-platform__compliance-privacy-request-list__cell [data-sla-state],
+.gb-open-platform__marketplace-listing-card__status {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: var(--gb-surface-muted, #f1f5f9);
+  color: var(--gb-text-muted, #475569);
+  font-size: 12px;
+}
+
+.gb-open-platform__webhook-endpoint-list__pagination,
+.gb-open-platform__open-platform-audit-event-list__pagination,
+.gb-open-platform__invoice-table__pagination,
+.gb-open-platform__compliance-data-asset-list__pagination,
+.gb-open-platform__compliance-privacy-request-list__pagination,
+.gb-open-platform__open-platform-outbox-status-list__pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.gb-open-platform__webhook-endpoint-list__page-status,
+.gb-open-platform__open-platform-audit-event-list__page-status,
+.gb-open-platform__invoice-table__page-status,
+.gb-open-platform__compliance-data-asset-list__page-status,
+.gb-open-platform__compliance-privacy-request-list__page-status,
+.gb-open-platform__open-platform-outbox-status-list__page-status {
+  color: var(--gb-text-muted, #64748b);
+  font-size: 12px;
+}
+
+.gb-open-platform__compliance-data-asset-list__asset-code,
+.gb-open-platform__compliance-privacy-request-list__status-reason,
+.gb-open-platform__compliance-privacy-request-list__subject-count,
+.gb-open-platform__compliance-privacy-request-list__identity-meta,
+.gb-open-platform__compliance-privacy-request-list__sla-due,
+.gb-open-platform__open-platform-outbox-status-list__event-id {
+  display: block;
+  color: var(--gb-text-muted, #64748b);
+  font-size: 11px;
+  white-space: normal;
+}
+
+.gb-open-platform__open-platform-outbox-status-list__event-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+}
+
+.gb-open-platform__compliance-data-asset-list__evidence {
+  display: block;
+  white-space: normal;
+}
+
+.gb-open-platform__compliance-data-asset-list__evidence + .gb-open-platform__compliance-data-asset-list__evidence {
+  margin-top: 3px;
+}
+
+.gb-open-platform__compliance-data-asset-list__evidence [data-evidence-reference] {
+  margin-left: 4px;
+  color: var(--gb-text-muted, #64748b);
+}
+
+.gb-open-platform__compliance-report-panel__metadata,
+.gb-open-platform__compliance-report-panel__metrics,
+.gb-open-platform__open-platform-domain-event-monitor__retry-metrics {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0 0 12px;
+  font-size: 12px;
+}
+
+.gb-open-platform__compliance-report-panel__metadata dt,
+.gb-open-platform__compliance-report-panel__metrics dt,
+.gb-open-platform__open-platform-domain-event-monitor__retry-metrics dt {
+  color: var(--gb-text-muted, #64748b);
+}
+
+.gb-open-platform__compliance-report-panel__metadata dd,
+.gb-open-platform__compliance-report-panel__metrics dd,
+.gb-open-platform__open-platform-domain-event-monitor__retry-metrics dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.gb-open-platform__compliance-report-panel__section {
+  margin-bottom: 12px;
+}
+
+.gb-open-platform__compliance-report-panel__metrics {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  margin-top: 6px;
+}
+
+.gb-open-platform__compliance-report-panel__gap-list,
+.gb-open-platform__compliance-report-panel__limitation-list,
+.gb-open-platform__open-platform-domain-event-monitor__retry-results {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 18px;
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+.gb-open-platform__compliance-report-panel__limitation-list {
+  color: var(--gb-text-muted, #64748b);
+}
+
+.gb-open-platform__compliance-report-panel__gap,
+.gb-open-platform__open-platform-domain-event-monitor__retry-result {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gb-open-platform__open-platform-domain-event-monitor__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.gb-open-platform__open-platform-domain-event-monitor__retry-summary {
+  margin-bottom: 12px;
+}
+
+.gb-open-platform__list-state {
+  padding: 18px 0;
+  text-align: center;
+}
+
+.gb-open-platform__state__error-message {
+  color: var(--gb-danger, #dc2626);
+}
+
+.gb-open-platform__state__empty-title,
+.gb-open-platform__state__error-title {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.gb-open-platform__marketplace-listing-card {
+  border: 1px solid var(--gb-border, #e2e8f0);
+  border-radius: var(--gb-radius, 10px);
+  padding: 16px;
+}
+
+.gb-open-platform__marketplace-listing-card__description {
+  margin: 8px 0 12px;
+  color: var(--gb-text-muted, #64748b);
+}
+
+.gb-open-platform__marketplace-listing-card__metadata {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.gb-open-platform__marketplace-listing-card__metadata dt {
+  color: var(--gb-text-muted, #64748b);
+}
+
+.gb-open-platform__marketplace-listing-card__metadata dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.gb-open-platform__marketplace-listing-card__actions,
+.gb-open-platform__marketplace-listing-card__footer {
+  margin-top: 12px;
+}
+
+.gb-open-platform__marketplace-listing-card__open-link,
+.gb-open-platform__marketplace-listing-card__open-button {
+  border: 1px solid var(--gb-border, #e2e8f0);
+  border-radius: calc(var(--gb-radius, 10px) / 2);
+  padding: 7px 11px;
+  background: var(--gb-surface, #fff);
+  color: var(--gb-text, #0f172a);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.gb-open-platform__marketplace-listing-card__open-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.gb-open-platform__developer-portal-shell__skip-link,
+.gb-open-platform__operations-shell__skip-link {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 720px) {
+  .gb-open-platform__developer-portal-shell__header,
+  .gb-open-platform__operations-shell__header,
+  .gb-open-platform__webhook-endpoint-list__header,
+  .gb-open-platform__open-platform-audit-event-list__header,
+  .gb-open-platform__invoice-table__header,
+  .gb-open-platform__compliance-data-asset-list__header,
+  .gb-open-platform__compliance-privacy-request-list__header,
+  .gb-open-platform__compliance-report-panel__header,
+  .gb-open-platform__open-platform-outbox-status-list__header,
+  .gb-open-platform__marketplace-listing-card__header {
+    flex-direction: column;
+  }
+
+  .gb-open-platform__webhook-endpoint-list__table,
+  .gb-open-platform__open-platform-audit-event-list__table,
+  .gb-open-platform__invoice-table__table,
+  .gb-open-platform__compliance-data-asset-list__table,
+  .gb-open-platform__compliance-privacy-request-list__table,
+  .gb-open-platform__open-platform-outbox-status-list__table {
+    display: block;
+  }
+}

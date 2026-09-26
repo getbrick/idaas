@@ -5,3 +5,4 @@ export * from "./guard.js";
 export * from "./decorators.js";
 export * from "./middleware.js";
 export * from "./module.js";
+export * from "./oidc/index.js";

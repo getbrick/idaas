@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Test } from "@nestjs/testing";
 import { Controller, Get, Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
@@ -10,6 +10,7 @@ import { buildTableMap, createIdaas, type RoleGraph } from "@getbrick/idaas-core
 import {
   GetbrickIdaasModule,
   GetbrickAuthGuard,
+  GetbrickAuthMiddleware,
   CurrentUser,
   DataScope,
   EffectivePermissions,
@@ -18,6 +19,12 @@ import {
   GetDataScope,
   GetbrickPermissions,
   GetbrickRoles,
+  CurrentSession,
+  Public,
+  RequireOrganization,
+  GETBRICK_PUBLIC,
+  isAuthPath,
+  type GetbrickAuthLike,
 } from "../src/index.js";
 
 @Controller("me")
@@ -25,6 +32,37 @@ class MeController {
   @Get()
   me(@CurrentUser() user: Record<string, unknown> | undefined) {
     return { email: user?.email };
+  }
+}
+
+@Controller("public")
+class PublicController {
+  @Get()
+  @Public()
+  read() {
+    return { ok: true };
+  }
+}
+
+@Controller("session")
+class SessionController {
+  @Get()
+  read(@CurrentSession() session: Record<string, unknown> | undefined) {
+    return session;
+  }
+}
+
+@Controller("organization")
+class OrganizationController {
+  @Get("required")
+  @RequireOrganization()
+  required() {
+    return { ok: true };
+  }
+
+  @Get("optional")
+  optional() {
+    return { ok: true };
   }
 }
 
@@ -78,10 +116,16 @@ function createAuth(features: Record<string, boolean> = {}) {
 
 @Module({
   imports: [GetbrickIdaasModule.forRoot({ auth: createAuth().auth })],
-  controllers: [MeController],
-  providers: [{ provide: APP_GUARD, useClass: GetbrickAuthGuard }],
+  controllers: [MeController, PublicController, SessionController],
 })
 class BasicAppModule {}
+
+@Module({
+  imports: [GetbrickIdaasModule.forRoot({ auth: createAuth().auth, guard: "manual" })],
+  controllers: [MeController, PublicController],
+  providers: [{ provide: APP_GUARD, useClass: GetbrickAuthGuard }],
+})
+class ManualAppModule {}
 
 describe("nestjs adapter e2e", () => {
   it("signs up via proxied handler and protects routes", async () => {
@@ -107,11 +151,107 @@ describe("nestjs adapter e2e", () => {
     const meUnauthed = await request(server).get("/me");
     expect(meUnauthed.status).toBe(401);
 
+    const publicUnauthed = await request(server).get("/public");
+    expect(publicUnauthed.status).toBe(200);
+    expect(Reflect.getMetadata(GETBRICK_PUBLIC, PublicController.prototype.read)).toBe(true);
+
     const meAuthed = await request(server)
       .get("/me")
       .set("Cookie", cookies);
     expect(meAuthed.status).toBe(200);
     expect(meAuthed.body.email).toBe("u@example.com");
+
+    const session = await request(server)
+      .get("/session")
+      .set("Cookie", cookies);
+    expect(session.status).toBe(200);
+    expect(session.body.session).toBeDefined();
+    expect(session.body.session).not.toHaveProperty("token");
+
+    await app.close();
+  });
+
+  it("supports explicit manual guard registration", async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [ManualAppModule],
+    }).compile();
+    const app = moduleRef.createNestApplication();
+    app.use(express.json());
+    await app.init();
+    const server = app.getHttpServer();
+
+    const publicResponse = await request(server).get("/public");
+    expect(publicResponse.status).toBe(200);
+
+    const protectedResponse = await request(server).get("/me");
+    expect(protectedResponse.status).toBe(401);
+
+    await app.close();
+  });
+
+  it("returns unauthorized when session lookup fails", async () => {
+    const auth = {
+      api: {
+        getSession: vi.fn().mockRejectedValue(new Error("session backend secret")),
+      },
+      handler: vi.fn(),
+    } as unknown as GetbrickAuthLike;
+    const moduleRef = await Test.createTestingModule({
+      imports: [GetbrickIdaasModule.forRoot({ auth })],
+      controllers: [MeController],
+    }).compile();
+    const app = moduleRef.createNestApplication();
+    app.use(express.json());
+    await app.init();
+
+    const response = await request(app.getHttpServer()).get("/me");
+    expect(response.status).toBe(401);
+    expect(JSON.stringify(response.body)).not.toContain("session backend secret");
+
+    await app.close();
+  });
+
+  it("uses a bounded auth path and hides middleware exceptions", async () => {
+    const auth = {
+      api: { getSession: vi.fn() },
+      handler: vi.fn().mockRejectedValue(new Error("raw middleware secret")),
+    } as unknown as GetbrickAuthLike;
+    const middleware = new GetbrickAuthMiddleware(auth);
+    const json = vi.fn();
+    const response = {
+      headersSent: false,
+      status: vi.fn().mockReturnThis(),
+      json,
+      end: vi.fn(),
+    };
+
+    await middleware.use(
+      { originalUrl: "/api/auth/test", method: "GET", headers: {} },
+      response,
+      vi.fn(),
+    );
+
+    expect(isAuthPath("/api/authorized")).toBe(false);
+    expect(isAuthPath("/custom/auth/sign-in", "/custom/auth/")).toBe(true);
+    expect(response.status).toHaveBeenCalledWith(500);
+    expect(json).toHaveBeenCalledWith({ message: "Internal Server Error" });
+    expect(JSON.stringify(json.mock.calls)).not.toContain("raw middleware secret");
+  });
+
+  it("supports an explicit auth base path", async () => {
+    const auth = {
+      api: { getSession: vi.fn() },
+      handler: vi.fn().mockResolvedValue(new Response("ok")),
+    } as unknown as GetbrickAuthLike;
+    const moduleRef = await Test.createTestingModule({
+      imports: [GetbrickIdaasModule.forRoot({ auth, basePath: "/custom/auth" })],
+    }).compile();
+    const app = moduleRef.createNestApplication();
+    await app.init();
+
+    const response = await request(app.getHttpServer()).get("/custom/auth/ping");
+    expect(response.status).toBe(200);
+    expect(response.text).toBe("ok");
 
     await app.close();
   });
@@ -121,7 +261,6 @@ describe("nestjs adapter e2e", () => {
     const moduleRef = await Test.createTestingModule({
       imports: [GetbrickIdaasModule.forRoot({ auth, rbac: TEST_ROLE_GRAPH })],
       controllers: [MeController, ProjectsController],
-      providers: [{ provide: APP_GUARD, useClass: GetbrickAuthGuard }],
     }).compile();
     const app = moduleRef.createNestApplication();
     app.use(express.json());
@@ -184,12 +323,41 @@ describe("nestjs adapter e2e", () => {
     await app.close();
   });
 
+  it("fails closed only for routes that require organization context", async () => {
+    const auth = {
+      api: {
+        getSession: vi.fn().mockResolvedValue({
+          user: { id: "user-1" },
+          session: { id: "session-1", activeOrganizationId: "org-1", token: "raw-token" },
+        }),
+        getActiveMember: vi.fn().mockRejectedValue(new Error("organization backend secret")),
+        getFullOrganization: vi.fn().mockResolvedValue({ id: "org-1", slug: "acme" }),
+      },
+      handler: vi.fn(),
+    } as unknown as GetbrickAuthLike;
+    const moduleRef = await Test.createTestingModule({
+      imports: [GetbrickIdaasModule.forRoot({ auth })],
+      controllers: [OrganizationController],
+    }).compile();
+    const app = moduleRef.createNestApplication();
+    app.use(express.json());
+    await app.init();
+    const server = app.getHttpServer();
+
+    const required = await request(server).get("/organization/required");
+    expect(required.status).toBe(403);
+
+    const optional = await request(server).get("/organization/optional");
+    expect(optional.status).toBe(200);
+
+    await app.close();
+  });
+
   it("merges organization member roles into effective permissions", async () => {
     const { auth } = createAuth({ organization: true });
     const moduleRef = await Test.createTestingModule({
       imports: [GetbrickIdaasModule.forRoot({ auth, rbac: TEST_ROLE_GRAPH })],
       controllers: [MeController, ProjectsController],
-      providers: [{ provide: APP_GUARD, useClass: GetbrickAuthGuard }],
     }).compile();
     const app = moduleRef.createNestApplication();
     app.use(express.json());

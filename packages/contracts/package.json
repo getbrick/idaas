@@ -1,0 +1,28 @@
+{
+  "name": "@getbrick/idaas-contracts",
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "out_dir=\"$(mktemp -d)\"; trap 'rm -rf \"$out_dir\"' 0; tsc -p tsconfig.test.json --outDir \"$out_dir\" && node --test \"$out_dir/test/open-platform.test.js\" \"$out_dir/test/open-platform-domain-events.test.js\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

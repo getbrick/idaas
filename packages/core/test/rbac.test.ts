@@ -71,6 +71,57 @@ describe("rbac", () => {
     expect(resolveDataScope(["*:*:own"], "project")).toBe("own");
   });
 
+  it("accepts shared parents in a role DAG", () => {
+    const config = defineIdaasConfig({
+      rbac: {
+        roles: {
+          base: { permissions: ["project:read"] },
+          left: { extends: ["base"] },
+          right: { extends: ["base"], permissions: ["ticket:read"] },
+          root: { extends: ["left", "right"], permissions: ["project:write"] },
+        },
+      },
+    });
+
+    const graph = buildRoleGraph(config);
+    expect(resolveEffectivePermissions(graph, "root")).toEqual([
+      "project:write",
+      "project:read",
+      "ticket:read",
+    ]);
+  });
+
+  it("rejects dangerous role and permission names", () => {
+    const dangerousRoles = JSON.parse('{"__proto__":{"permissions":["project:read"]}}');
+    expect(() => buildRoleGraph({ rbac: { roles: dangerousRoles } } as never)).toThrow(/dangerous role/);
+    expect(() =>
+      buildRoleGraph({ rbac: { roles: { __proto__: { permissions: ["project:read"] } } } } as never),
+    ).toThrow(/dangerous role/);
+    expect(() =>
+      buildRoleGraph({ rbac: { roles: { unsafe: { permissions: ["constructor:read"] } } } } as never),
+    ).toThrow(/dangerous permission/);
+    expect(() =>
+      buildRoleGraph({ rbac: { roles: { unsafe: { permissions: ["project:read:unknown:extra"] } } } } as never),
+    ).toThrow(/invalid permission/);
+  });
+
+  it("protects permission resolution from cycles and deep graphs", () => {
+    const cyclic: RoleGraph = {
+      first: { extends: ["second"], permissions: ["first:read"] },
+      second: { extends: ["first"], permissions: ["second:read"] },
+    };
+    expect(resolveEffectivePermissions(cyclic, "first")).toEqual(["first:read", "second:read"]);
+
+    const deep: RoleGraph = {};
+    for (let index = 0; index < 2000; index++) {
+      deep[`role${index}`] = {
+        extends: index === 0 ? [] : [`role${index - 1}`],
+        permissions: [`resource${index}:read`],
+      };
+    }
+    expect(resolveEffectivePermissions(deep, "role1999")).toHaveLength(2000);
+  });
+
   it("reads roles from a session user", () => {
     expect(rolesFromUser({ role: "admin" })).toEqual(["admin"]);
     expect(rolesFromUser({ role: ["admin", "support"] })).toEqual(["admin", "support"]);

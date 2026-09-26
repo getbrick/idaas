@@ -9,8 +9,16 @@ import {
   rolesFromUser,
   type RoleGraph,
 } from "@getbrick/idaas-core";
-import { GETBRICK_AUTH, GETBRICK_PERMISSIONS, GETBRICK_RBAC, GETBRICK_ROLES, type GetbrickAuthLike } from "./tokens.js";
-import { getSessionFromRequest, headersFromRequest } from "./request.js";
+import {
+  GETBRICK_AUTH,
+  GETBRICK_ORGANIZATION_REQUIRED,
+  GETBRICK_PERMISSIONS,
+  GETBRICK_PUBLIC,
+  GETBRICK_RBAC,
+  GETBRICK_ROLES,
+  type GetbrickAuthLike,
+} from "./tokens.js";
+import { getSessionFromRequest, headersFromRequest, isRecord, type GetbrickSession } from "./request.js";
 
 @Injectable()
 export class GetbrickAuthGuard implements CanActivate {
@@ -21,27 +29,33 @@ export class GetbrickAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const req = context.switchToHttp().getRequest<Record<string, any>>();
-    const session = await getSessionFromRequest(this.auth, req);
-    if (!session?.user) {
+    const metadataTargets = [context.getHandler(), context.getClass()];
+    const isPublic = this.reflector.getAllAndOverride<boolean | undefined>(
+      GETBRICK_PUBLIC,
+      metadataTargets,
+    );
+    if (isPublic === true) return true;
+
+    const req = context.switchToHttp().getRequest<Record<string, unknown>>();
+    delete req.getbrickSession;
+    delete req.getbrickPermissions;
+    delete req.getbrickDataScopes;
+
+    let session: GetbrickSession | null;
+    try {
+      session = await getSessionFromRequest(this.auth, req);
+    } catch {
       throw new UnauthorizedException();
     }
-    req.getbrickSession = session;
+    if (!session?.user) throw new UnauthorizedException();
 
-    const activeOrgId = session.session?.activeOrganizationId;
-    if (activeOrgId && typeof activeOrgId === "string") {
-      const headers = headersFromRequest(req);
-      try {
-        const [member, organization] = await Promise.all([
-          this.auth.api.getActiveMember?.({ headers }),
-          this.auth.api.getFullOrganization?.({ headers }),
-        ]);
-        if (member && typeof member === "object") session.member = member as Record<string, unknown>;
-        if (organization && typeof organization === "object") session.organization = organization as Record<string, unknown>;
-      } catch {
-        // organization enrichment is best-effort; guards must not fail on it
-      }
-    }
+    req.getbrickSession = session;
+    const requireOrganization =
+      this.reflector.getAllAndOverride<boolean | undefined>(
+        GETBRICK_ORGANIZATION_REQUIRED,
+        metadataTargets,
+      ) === true;
+    await this.enrichOrganization(req, session, requireOrganization);
 
     const graph = this.roleGraph ?? DEFAULT_ROLE_GRAPH;
     const userRoles = rolesFromUser(session.user);
@@ -56,16 +70,16 @@ export class GetbrickAuthGuard implements CanActivate {
 
     const requiredRoles = this.reflector.getAllAndOverride<string[] | undefined>(
       GETBRICK_ROLES,
-      [context.getHandler(), context.getClass()],
+      metadataTargets,
     );
     if (requiredRoles && requiredRoles.length > 0) {
-      const ok = requiredRoles.some((r) => userRoles.includes(r));
+      const ok = requiredRoles.some((role) => userRoles.includes(role));
       if (!ok) throw new ForbiddenException("insufficient role");
     }
 
     const requiredPermissions = this.reflector.getAllAndOverride<string[] | undefined>(
       GETBRICK_PERMISSIONS,
-      [context.getHandler(), context.getClass()],
+      metadataTargets,
     );
     if (requiredPermissions && requiredPermissions.length > 0) {
       if (!hasAllPermissions([...effectivePermissions], requiredPermissions)) {
@@ -78,5 +92,45 @@ export class GetbrickAuthGuard implements CanActivate {
       get: (_target, resource: string) => resolveDataScope([...effectivePermissions], resource),
     });
     return true;
+  }
+
+  private async enrichOrganization(
+    req: Record<string, unknown>,
+    session: GetbrickSession,
+    failClosed: boolean,
+  ): Promise<void> {
+    const activeOrganizationId = session.session?.activeOrganizationId;
+    const hasExistingContext = isRecord(session.member) && isRecord(session.organization);
+    if (typeof activeOrganizationId !== "string" || activeOrganizationId.length === 0) {
+      if (failClosed && !hasExistingContext) {
+        throw new ForbiddenException("organization context required");
+      }
+      return;
+    }
+
+    try {
+      const headers = headersFromRequest(req);
+      const [member, organization] = await Promise.all([
+        this.auth.api.getActiveMember
+          ? this.auth.api.getActiveMember({ headers })
+          : Promise.resolve(session.member),
+        this.auth.api.getFullOrganization
+          ? this.auth.api.getFullOrganization({ headers })
+          : Promise.resolve(session.organization),
+      ]);
+      const hasMember = isRecord(member);
+      const hasOrganization = isRecord(organization);
+      if (hasMember) session.member = member;
+      if (hasOrganization) session.organization = organization;
+      if (failClosed && (!hasMember || !hasOrganization)) {
+        throw new ForbiddenException("organization context unavailable");
+      }
+    } catch {
+      if (failClosed) {
+        delete session.member;
+        delete session.organization;
+        throw new ForbiddenException("organization context unavailable");
+      }
+    }
   }
 }

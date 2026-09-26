@@ -3,3 +3,6 @@ dist/
 *.tsbuildinfo
 .env
 .DS_Store
+
+# mktemp -d -p . scratch dirs from package test scripts
+tmp.*/

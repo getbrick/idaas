@@ -1,0 +1,33 @@
+{
+  "name": "Getbrick UniApp Client",
+  "appid": "__UNI__GETBRICK_CLIENT",
+  "description": "Getbrick client authentication template",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "app-plus": {
+    "usingComponents": true,
+    "nvueStyleCompiler": "uni-app",
+    "compilerVersion": 3,
+    "distribute": {
+      "android": {},
+      "ios": {}
+    }
+  },
+  "mp-weixin": {
+    "appid": "wx0000000000000000",
+    "usingComponents": true,
+    "setting": {
+      "urlCheck": true,
+      "es6": true,
+      "minified": true
+    }
+  },
+  "h5": {
+    "title": "Getbrick 客户端",
+    "router": {
+      "mode": "history",
+      "base": "/"
+    }
+  }
+}

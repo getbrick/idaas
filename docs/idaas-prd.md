@@ -77,7 +77,97 @@
 3. **表名映射不可黑盒**：客户库中所有表可审计、可自定义映射
 4. **审计全量挂 hooks**：登录/授权变更/管理操作经统一事件模型脱敏后落 Sink（DB/文件/HTTP）
 
-### 3.3 与纯自研方案的取舍（记录）
+### 3.3 深度安全设计（v0.2）
+
+#### 3.3.1 状态机与不变量
+
+平台登录和 OIDC RP-initiated flow 都采用一次性、租户化、绑定化的事务模型：
+
+```text
+ISSUED
+  -> RESERVED(lease_owner, lease_expires_at)
+  -> CLAIMED
+  -> EXCHANGING
+  -> SUCCEEDED
+       -> FAILED
+ISSUED/RESERVED
+  -> EXPIRED | REVOKED
+```
+
+必须保持以下不变量：
+
+- `state`、`code`、`ticket` 只以 hash 或一次性 reference 存储；成功消费后不可恢复。
+- claim/consume 必须原子校验 `tenantId + applicationId + platformId + clientKind + binding`。
+- 任何序列化失败、未知 binding、未知 client audience 都 fail closed；禁止把任意 request 对象作为缓存 key。
+- `returnTo` 只能由服务端事务恢复，callback 不得重新选择目标。
+- 外部 provider code 只执行一次；超时或暂时失败不能把已消费事务恢复为可用状态。
+- session refresh 使用 CAS/version 或分布式锁；旧 reference 只能重放为同一个幂等结果或被拒绝。
+
+#### 3.3.2 OIDC 交互边界
+
+```text
+AUTHORIZATION_REQUESTED
+  -> INTERACTION_ISSUED(route_uid + cookie_uid + request_hash)
+  -> AUTH_REQUIRED
+  -> AUTHENTICATED(auth_time, amr, acr)
+  -> CONSENT_REQUIRED
+  -> CONSENTED(exact scope/claim set)
+  -> CODE_ISSUED
+  -> CODE_CONSUMED
+```
+
+- URL interaction UID、interaction cookie UID、持久化 interaction UID 必须相同。
+- `prompt=none` 不得触发交互或自动 consent；缺少认证返回 `login_required`，缺少授权返回 `consent_required`。
+- `prompt=login`/`max_age` 必须经过宿主明确的重新认证，不得用旧 host session 直接完成。
+- `prompt=consent` 必须经过显式 consent decision；生产宿主应把 resolver 绑定到 CSRF/Origin 校验的用户交互，库不把缺省值当作同意。
+- RP 生产配置必须固定 `issuer`、HTTPS discovery/UserInfo endpoint，并校验 discovery metadata 的 issuer、签名算法、nonce、`iss/aud/azp/exp` 与 UserInfo `sub`。
+- RP logout 只有在 provider 完成参数、hint、redirect 和用户确认后才清理 Better Auth 本地 session；无效 logout 请求不得产生副作用。
+
+#### 3.3.3 UniApp BFF 通道协议
+
+BFF 明确区分两个不可互换的结果：
+
+| 通道 | exchange 结果 | 后续认证 |
+|------|--------------|----------|
+| H5/web | `204 + Set-Cookie(HttpOnly; Secure; SameSite)` | 只通过服务器 cookie |
+| App/native/mp | JSON opaque session reference | 只通过 opaque reference |
+
+- H5 不得把 bearer session 写入 `uni.storage`，也不得把 cookie 模式伪装成 JSON session。
+- native 不得接收 provider token、Better Auth session secret 或 `session_key`。
+- BFF state claim 一次性绑定 `clientId + clientType + redirectUri + bindingHash`；错误 binding 不得烧掉合法 state。
+- 生产 BFF state store、host adapter、session service 必须持久化、跨实例共享并提供 readiness。
+- H5 跨源部署需要精确 CORS allowlist、显式 `withCredentials`、CSRF/Origin 校验和受控 SameSite 策略；默认推荐同源反向代理。
+
+#### 3.3.4 租户与持久化部署矩阵
+
+| 模式 | 适用 | 必须具备 | 当前生产门槛 |
+|------|------|----------|--------------|
+| `fixed` | 单租户私有化 | 持久 repository、state/session/ticket store | 可生产 |
+| `dedicated` | 每租户独立库 | 独立 DB、migration、secret boundary | 可生产 |
+| `shared` | 多租户实验 | trusted tenant resolver、UnitOfWork、RLS、tenant-qualified OIDC namespace | 默认禁止生产；需显式 resolver/隔离验收 |
+
+所有 tenant-owned repository 必须使用同一 request-scoped transaction/connection，并由 UnitOfWork 设置 `app.tenant_id`；禁止 repository 自行从裸 Pool 查询。
+
+#### 3.3.5 微信 component 凭据协调器
+
+component access token、authorized refresh token、binding version 必须由 tenant-scoped coordinator 管理：
+
+- refresh token 轮换使用 version/CAS，提前刷新并保留短暂 grace。
+- 多实例 singleflight/lock，避免重复轮换和旧 token 覆盖新 token。
+- component binding 禁用/解绑后下一次授权立即失败，不依赖进程内缓存。
+- provider response、access token、refresh token、app secret 只存在服务端存储；公共 DTO 只返回稳定错误码。
+
+#### 3.3.6 生产启动门槛
+
+以下任一条件不满足时，模块必须启动失败，而不是降级到内存实现：
+
+- platform login state、opaque session、webview ticket 使用持久化实现并通过 readiness。
+- OIDC 使用持久化 adapter、显式 cookie keys/JWKS、可信 proxy 配置。
+- RP issuer/UserInfo/redirect 策略完整，ID Token 验证不可关闭。
+- shared tenant 的 RLS、tenant resolver、UnitOfWork 和 OIDC client namespace 已验收。
+- refresh/revoke/purge/retention 任务和审计 sink 已配置。
+
+### 3.4 与纯自研方案的取舍（记录）
 
 纯自研内核（原 v0.1 规划的 spi/auth/credential/token/rbac 独立实现）被否决：Better Auth 已实战覆盖其约 70%，自研的安全正确性风险与维护成本远大于差异价值。原自研设计保留在 git 历史中作为 Plan B 参考。
 

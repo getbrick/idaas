@@ -1,0 +1,32 @@
+{
+  "easycom": {
+    "autoscan": true
+  },
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "Getbrick 客户端"
+      }
+    },
+    {
+      "path": "pages/auth/callback",
+      "style": {
+        "navigationBarTitleText": "登录回调"
+      }
+    },
+    {
+      "path": "pages/auth/web-view",
+      "style": {
+        "navigationBarTitleText": "登录",
+        "navigationStyle": "default"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "Getbrick 客户端",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f6f7f9"
+  }
+}

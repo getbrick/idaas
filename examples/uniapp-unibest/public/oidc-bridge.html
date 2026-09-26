@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="referrer" content="no-referrer">
+  <title>OIDC bridge</title>
+</head>
+<body>
+<script>
+(() => {
+  const params = new URLSearchParams(window.location.search);
+  const payload = { type: "getbrick-oidc-callback" };
+  const keys = ["code", "state", "flowId", "flow_id", "nonce", "error", "error_description", "ticket", "ticketReference"];
+  for (const key of keys) {
+    const value = params.get(key);
+    if (value !== null) payload[key] = value;
+  }
+  if (window.parent !== window) window.parent.postMessage(payload, window.location.origin);
+})();
+</script>
+</body>
+</html>

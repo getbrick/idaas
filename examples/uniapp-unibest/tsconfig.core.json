@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [],
+    "noEmit": true
+  },
+  "include": [
+    "src/config.ts",
+    "src/auth/**/*.ts",
+    "src/services/**/*.ts",
+    "src/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist", "src/pages", "src/stores", "test"]
+}
