@@ -26,6 +26,7 @@ import {
 import { normalizeIdentifier, normalizeTenantKey } from "../validation.js";
 import {
   normalizeOpenPlatformRelayLeaseRequest,
+  type OpenPlatformRelayLeaseHolder,
   type OpenPlatformRelayLeasePort,
   type OpenPlatformRelayLeaseRequest,
   type OpenPlatformRelayLeaseState,
@@ -34,7 +35,6 @@ import type { OpenPlatformDependencyReadiness, OpenPlatformEntityKind } from "..
 import {
   OpenPlatformSqlRuntime,
   createOpenPlatformSqlRuntime,
-  readBoolean,
   readDate,
   readNumber,
   readText,
@@ -398,57 +398,106 @@ export class SqlOpenPlatformRelayLease implements OpenPlatformRelayLeasePort {
   }
 
   async isReady(): Promise<boolean> {
-    return this.runtime.isReady(["domainEvents"]);
+    return this.runtime.isReady(["relayLeases"]);
   }
 
   async acquire(
     request: OpenPlatformRelayLeaseRequest,
   ): Promise<OpenPlatformRelayLeaseState> {
-    const normalized = normalizeOpenPlatformRelayLeaseRequest(request);
-    const rows = await this.runtime.queryRows(
-      `SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS ${quoteAlias("acquired")}`,
-      [normalized.key],
-    );
-    return advisoryLeaseState(normalized, readBoolean(rowValue(rows[0] ?? {}, "acquired")));
+    return this.upsert(request, true);
   }
 
   async renew(
     request: OpenPlatformRelayLeaseRequest,
   ): Promise<OpenPlatformRelayLeaseState> {
-    return this.acquire(request);
+    return this.upsert(request, false);
   }
 
   async release(request: OpenPlatformRelayLeaseRequest): Promise<boolean> {
     const normalized = normalizeOpenPlatformRelayLeaseRequest(request);
-    const rows = await this.runtime.queryRows(
-      `SELECT pg_advisory_unlock(hashtextextended($1, 0)) AS ${quoteAlias("released")}`,
-      [normalized.key],
+    const result = await this.runtime.executeMutation(
+      `DELETE FROM ${this.runtime.table("relayLeases")} WHERE ${this.leaseKeyColumn()} = $1 AND ${this.leaseOwnerColumn()} = $2`,
+      [normalized.key, normalized.ownerId],
     );
-    return readBoolean(rowValue(rows[0] ?? {}, "released"));
+    return result.affected > 0;
+  }
+
+  async holder(
+    key: string,
+  ): Promise<OpenPlatformRelayLeaseHolder | undefined> {
+    const rows = await this.runtime.queryRows(
+      `SELECT ${this.leaseOwnerColumn()} AS ${quoteAlias("ownerId")}, ${this.leaseExpiresColumn()} AS ${quoteAlias("expiresAt")} FROM ${this.runtime.table("relayLeases")} WHERE ${this.leaseKeyColumn()} = $1`,
+      [key],
+    );
+    const row = rows[0] ?? {};
+    const ownerId = readText(rowValue(row, "ownerId"));
+    const expiresAt = readDate(rowValue(row, "expiresAt"));
+    if (ownerId === undefined || expiresAt === undefined) return undefined;
+    return Object.freeze({ key, ownerId, expiresAt });
+  }
+
+  private async upsert(
+    request: OpenPlatformRelayLeaseRequest,
+    takeoverExpired: boolean,
+  ): Promise<OpenPlatformRelayLeaseState> {
+    const normalized = normalizeOpenPlatformRelayLeaseRequest(request);
+    const now = normalized.now;
+    const expiresAt = new Date(Date.parse(now) + normalized.ttlMs).toISOString();
+    const table = this.runtime.table("relayLeases");
+    const key = this.leaseKeyColumn();
+    const owner = this.leaseOwnerColumn();
+    const acquired = this.leaseAcquiredColumn();
+    const expires = this.leaseExpiresColumn();
+    const updated = this.leaseUpdatedColumn();
+    const guard = takeoverExpired
+      ? `${table}.${expires} <= $3::timestamptz OR ${table}.${owner} = EXCLUDED.${owner}`
+      : `${table}.${owner} = EXCLUDED.${owner}`;
+    const result = await this.runtime.executeMutation(
+      `INSERT INTO ${table} (${key}, ${owner}, ${acquired}, ${expires}, ${updated}) VALUES ($1, $2, $3::timestamptz, $4::timestamptz, $3::timestamptz) ON CONFLICT (${key}) DO UPDATE SET ${owner} = EXCLUDED.${owner}, ${acquired} = EXCLUDED.${acquired}, ${expires} = EXCLUDED.${expires}, ${updated} = EXCLUDED.${updated} WHERE ${guard} RETURNING ${owner} AS ${quoteAlias("ownerId")}, ${expires} AS ${quoteAlias("expiresAt")}`,
+      [normalized.key, normalized.ownerId, now, expiresAt],
+    );
+    const row = result.rows[0];
+    if (row !== undefined) {
+      return Object.freeze({
+        key: normalized.key,
+        ownerId: readText(rowValue(row, "ownerId")) ?? normalized.ownerId,
+        held: true,
+        expiresAt: readDate(rowValue(row, "expiresAt")) ?? expiresAt,
+      });
+    }
+    const current = await this.holder(normalized.key);
+    return Object.freeze({
+      key: normalized.key,
+      ownerId: current?.ownerId ?? normalized.ownerId,
+      held: false,
+      ...(current === undefined ? {} : { expiresAt: current.expiresAt }),
+    });
+  }
+
+  private leaseKeyColumn(): string {
+    return this.runtime.column("relayLeases", "leaseKey");
+  }
+
+  private leaseOwnerColumn(): string {
+    return this.runtime.column("relayLeases", "ownerId");
+  }
+
+  private leaseAcquiredColumn(): string {
+    return this.runtime.column("relayLeases", "acquiredAt");
+  }
+
+  private leaseExpiresColumn(): string {
+    return this.runtime.column("relayLeases", "expiresAt");
+  }
+
+  private leaseUpdatedColumn(): string {
+    return this.runtime.column("relayLeases", "updatedAt");
   }
 }
 
 export const SqlDomainEventRelayLease = SqlOpenPlatformRelayLease;
 export const PostgresOpenPlatformRelayLease = SqlOpenPlatformRelayLease;
 export const PostgreSqlOpenPlatformRelayLease = SqlOpenPlatformRelayLease;
-
-function advisoryLeaseState(
-  request: OpenPlatformRelayLeaseRequest,
-  held: boolean,
-): OpenPlatformRelayLeaseState {
-  return Object.freeze({
-    key: request.key,
-    ownerId: request.ownerId,
-    held,
-    ...(held
-      ? {
-          expiresAt: new Date(
-            Date.parse(request.now) + request.ttlMs,
-          ).toISOString(),
-        }
-      : {}),
-  });
-}
 
 function domainEventFields(): string[] {
   return [

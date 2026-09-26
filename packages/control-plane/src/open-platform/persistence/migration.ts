@@ -33,7 +33,9 @@ export const OPEN_PLATFORM_DOMAIN_EVENT_MIGRATION_VERSION = 4;
 export const OPEN_PLATFORM_DOMAIN_EVENT_MIGRATION_NAME = "open-platform-domain-event-outbox";
 export const OPEN_PLATFORM_OUTBOX_MIGRATION_VERSION = OPEN_PLATFORM_DOMAIN_EVENT_MIGRATION_VERSION;
 export const OPEN_PLATFORM_OUTBOX_MIGRATION_NAME = OPEN_PLATFORM_DOMAIN_EVENT_MIGRATION_NAME;
-export const OPEN_PLATFORM_LATEST_MIGRATION_VERSION = OPEN_PLATFORM_DOMAIN_EVENT_MIGRATION_VERSION;
+export const OPEN_PLATFORM_RELAY_LEASE_MIGRATION_VERSION = 5;
+export const OPEN_PLATFORM_RELAY_LEASE_MIGRATION_NAME = "open-platform-relay-lease";
+export const OPEN_PLATFORM_LATEST_MIGRATION_VERSION = OPEN_PLATFORM_RELAY_LEASE_MIGRATION_VERSION;
 export const OPEN_PLATFORM_MIGRATION_TABLE = "gb_open_schema_migration";
 export const OPEN_PLATFORM_MIGRATION_LOCK_TABLE = "gb_open_schema_migration_lock";
 
@@ -63,6 +65,7 @@ export interface OpenPlatformMigrationOptions {
   includeDeliveryLeaseMigration?: boolean;
   includeDomainEventMigration?: boolean;
   includeOutboxMigration?: boolean;
+  includeRelayLeaseMigration?: boolean;
 }
 
 export function createOpenPlatformMigrationSql(
@@ -265,6 +268,50 @@ export function getOpenPlatformDomainEventMigrationDefinition(
 export const getOpenPlatformOutboxMigrationDefinition = getOpenPlatformDomainEventMigrationDefinition;
 export const getOpenPlatformEventOutboxMigrationDefinition = getOpenPlatformDomainEventMigrationDefinition;
 
+export function createOpenPlatformRelayLeaseMigrationSql(
+  options: OpenPlatformMigrationOptions = {},
+): string {
+  const tenant = migrationTenant(options);
+  const tables = migrationTables(options, tenant.schema, true);
+  const migrationTable = qualifyMigrationMetadataTable(
+    options.migrationTable ?? options.migrationHistoryTable ?? OPEN_PLATFORM_MIGRATION_TABLE,
+    tenant.schema,
+    "migration table",
+  );
+  const migrationLockTable = qualifyMigrationMetadataTable(
+    options.migrationLockTable ?? OPEN_PLATFORM_MIGRATION_LOCK_TABLE,
+    tenant.schema,
+    "migration lock table",
+  );
+  const statements: string[] = [createRelayLeaseTable(tables.relayLeases)];
+  statements.push(createMigrationMetadataSql({
+    tableName: migrationTable,
+    lockTableName: migrationLockTable,
+  }));
+  return `${statements.join(";\n")};\n`;
+}
+
+export function getOpenPlatformRelayLeaseMigrationDefinition(
+  options: OpenPlatformMigrationOptions = {},
+): MigrationDefinition {
+  return createMigrationDefinition(
+    OPEN_PLATFORM_RELAY_LEASE_MIGRATION_VERSION,
+    options.migrationName ?? OPEN_PLATFORM_RELAY_LEASE_MIGRATION_NAME,
+    createOpenPlatformRelayLeaseMigrationSql(options),
+    {
+      component: "open-platform-relay-lease",
+      tenantMode: migrationTenant(options).mode,
+      tenantId: migrationTenant(options).tenantId,
+      checksumAlgorithm: "sha256",
+      tables: {
+        relayLeases: OPEN_PLATFORM_SQL_TABLES.relayLeases,
+      },
+    },
+    migrationScope(options),
+    { additive: true, requires: [OPEN_PLATFORM_DOMAIN_EVENT_MIGRATION_VERSION] },
+  );
+}
+
 export function getOpenPlatformManagementMigrationDefinition(
   options: OpenPlatformMigrationOptions = {},
 ): MigrationDefinition {
@@ -324,6 +371,9 @@ export function getOpenPlatformMigrations(
   }
   if (options.includeDomainEventMigration !== false && options.includeOutboxMigration !== false) {
     migrations.push(getOpenPlatformDomainEventMigrationDefinition(options));
+  }
+  if (options.includeRelayLeaseMigration !== false) {
+    migrations.push(getOpenPlatformRelayLeaseMigrationDefinition(options));
   }
   return migrations;
 }
@@ -761,6 +811,18 @@ function createDomainEventTable(
     `UNIQUE (${q(tenantId)}, ${q("sequence")})`,
     `FOREIGN KEY (${q(tenantId)}) REFERENCES ${q(tenantTable)} (${q(tenantId)})`,
     `CHECK (${q("attempt")} <= ${q("max_attempts")})`,
+  ].join(", ")})`;
+}
+
+function createRelayLeaseTable(table: string): string {
+  return `CREATE TABLE IF NOT EXISTS ${q(table)} (${[
+    `${q("lease_key")} TEXT NOT NULL`,
+    `${q("owner_id")} TEXT NOT NULL`,
+    `${q("acquired_at")} TIMESTAMPTZ NOT NULL`,
+    `${q("expires_at")} TIMESTAMPTZ NOT NULL`,
+    `${q("updated_at")} TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `PRIMARY KEY (${q("lease_key")})`,
+    `CHECK (${q("expires_at")} > ${q("acquired_at")})`,
   ].join(", ")})`;
 }
 

@@ -6,7 +6,7 @@
 
 - 投递循环：`packages/control-plane/src/open-platform/events-relay.ts`（`OpenPlatformEventRelay`）
 - 领导者租约端口与内存实现：同文件（`OpenPlatformRelayLeasePort`、`InMemoryOpenPlatformRelayLease`）
-- SQL advisory lock 实现：`packages/control-plane/src/open-platform/persistence/events.ts`（`SqlOpenPlatformRelayLease`）
+- SQL 租约表实现：`packages/control-plane/src/open-platform/persistence/events.ts`（`SqlOpenPlatformRelayLease`），迁移见同目录 `migration.ts`（additive v5 `open-platform-relay-lease`，表 `gb_open_relay_lease`）
 - outbox 端口与投递器：`packages/control-plane/src/open-platform/events.ts`
 - 迁移：`packages/control-plane/src/open-platform/persistence/migration.ts`
 
@@ -54,7 +54,7 @@ const relay = createOpenPlatformEventRelay({
 
 - 每个 tick 开始前先 `acquire`；未取到则本轮记为 `skipped`（`claimed = 0`），不做任何投递，随后照常按间隔调度下一轮。
 - 取到则执行本轮投递，并在 `finally` 中 `release`，因此正常情况下任意时刻只有一个实例在投递。
-- 实例崩溃时不会 `release`，租约到期后其他实例可接管。默认 `leaseTtlMs = 30_000`，可配置范围 1000ms–3600000ms。
+- 实例崩溃时不会 `release`，但 `gb_open_relay_lease.expires_at` 到期后其他实例可直接接管，不依赖崩溃实例的数据库连接断开。默认 `leaseTtlMs = 30_000`，可配置范围 1000ms–3600000ms。
 - 租约获取失败（抛出异常或返回非法状态）按失败关闭处理：本轮不投递，计入 `errors` 并以 `scope = "lease"` 上报，不会退化为「无租约也投递」。
 - `leaseKey` 默认 `getbrick:open-platform:outbox-relay`（`OPEN_PLATFORM_EVENT_RELAY_LEASE_KEY`）。同一数据库内若要区分环境（例如 staging 与 production 共库），可为各环境设置不同的 `leaseKey`；不设置时所有实例必须使用同一 key。
 - `ownerId` 默认自动生成（`relay_leader_<uuid>`），仅用于日志与指标归因，不参与互斥判定；可显式设置为 Pod 名等可读标识。
@@ -63,17 +63,28 @@ const relay = createOpenPlatformEventRelay({
 `SqlOpenPlatformRelayLease` 的 SQL 形状：
 
 ```sql
-SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS "acquired"
-SELECT pg_advisory_unlock(hashtextextended($1, 0)) AS "released"
+INSERT INTO "gb_open_relay_lease" ("lease_key", "owner_id", "acquired_at", "expires_at", "updated_at")
+VALUES ($1, $2, $3::timestamptz, $4::timestamptz, $3::timestamptz)
+ON CONFLICT ("lease_key") DO UPDATE
+  SET "owner_id" = EXCLUDED."owner_id", "acquired_at" = EXCLUDED."acquired_at",
+      "expires_at" = EXCLUDED."expires_at", "updated_at" = EXCLUDED."updated_at"
+  WHERE "gb_open_relay_lease"."expires_at" <= $3::timestamptz
+     OR "gb_open_relay_lease"."owner_id" = EXCLUDED."owner_id"
+RETURNING "owner_id" AS "ownerId", "expires_at" AS "expiresAt";
+
+DELETE FROM "gb_open_relay_lease" WHERE "lease_key" = $1 AND "owner_id" = $2
 ```
 
-要点与限制：
+要点：
 
-- 键由稳定字符串在数据库侧确定性哈希得到，多个实例对同一 `leaseKey` 得到同一把锁，无需新增表或迁移。
-- 使用会话级 advisory lock，不带服务端过期时间：`expiresAt` 是客户端视图（`now + leaseTtlMs`），真正的释放条件是 `pg_advisory_unlock` 或会话关闭。
-- 会话锁跟随数据库连接。relay 的 `acquire` 与 `release` 通过传入的 executor 执行；若 executor 是连接池，`release` 可能落在另一条连接上而返回 `false`，此时锁会保留到该连接关闭为止（表现为其他实例持续 `skipped`）。若要严格保证释放语义，请为 relay 租约单独提供一个固定连接（或单连接 executor），并优先在专用进程/Deployment 中运行 relay。
+- 租约是一行数据，由 `gb_open_relay_lease`（additive v5 迁移 `open-platform-relay-lease`）承载，`lease_key` 为主键。`expires_at` 由数据库持有，**`leaseTtlMs` 是真实的服务端过期时间**，不是客户端视图。
+- `acquire` 是一条 `INSERT ... ON CONFLICT DO UPDATE ... WHERE` 的原子语句：只有当该 key 不存在、已过期，或本实例本来就是持有者时才会写入并返回行；否则返回 0 行且不报错。因此多个实例并发抢锁时必然只有一个成功，不需要事务或会话级互斥。
+- **不依赖会话**。锁状态存在表里而不是连接上，所以 `acquire` 与 `release` 落在不同连接、不同实例都不会泄漏；`release` 只删除自己持有的行，非持有者调用返回 `false`。
+- 实例崩溃时不会 `release`，但行仍在，`expires_at` 到期后其他实例凭 `acquire` 直接接管，无需等待连接断开。
+- `renew` 只在 `owner_id` 仍是自己时延长；租约已被他人接管时返回 `held = false`，不会误延长。
+- 该实现提供 `holder()`，可直接查询当前持有者与到期时间；快照中的 `leaseOwnerId` / `leaseExpiresAt` 来自数据库而非本实例视图。
 - 该实现通过 `OpenPlatformSqlRuntime` 执行，沿用既有 RLS/租户上下文约定（`requireRls` 时会包事务并设置 `app.tenant_id`），不绕过安全模式。
-- 该实现不提供 `holder()`：PostgreSQL advisory lock 无法查询当前持有者，快照中的 `leaseOwnerId` 只会反映本实例最近一次交互的结果。
+- 该表是数据库全局对象，不带租户列，也不参与 RLS：relay 领导权按数据库判定，不按租户判定。
 
 ### 2.3 扩缩容建议
 
@@ -122,7 +133,7 @@ SELECT pg_advisory_unlock(hashtextextended($1, 0)) AS "released"
 - 建议的告警条件：
   - `running == true && leader == false` 持续超过若干个 `intervalMs` → 没有活跃 leader，检查租约与数据库连接。
   - `now - lastSuccessAt` 超过阈值 → relay 停止成功推进（注意 `lastSuccessAt` 只在无错误轮次更新，投递失败会体现在 `failed` 计数上）。
-  - `skipped` 持续高速增长且 `claimed` 不变 → 多实例全部退化为 standby，通常是租约键不一致或 advisory lock 泄漏。
+  - `skipped` 持续高速增长且 `claimed` 不变 → 多实例全部退化为 standby。先确认各实例 `leaseKey` 一致；再用 `holder(leaseKey)` 查看当前持有者与 `expires_at`：若 `expires_at` 已过期却仍无人取得，说明 `gb_open_relay_lease` 迁移未执行。
   - `deadLettered` 增长 → 需要人工介入（见第 4 节）。
   - `errors` 增长且 `lastErrorCode` 为 `OPEN_PLATFORM_EVENT_RELAY_ERROR` → 租户解析器、租约端口或 outbox 访问异常。
 - 建议同时记录 `relay.isRunning()` 与 `relay.isReady()`，前者反映循环状态，后者反映 publisher/outbox 依赖就绪情况。
@@ -249,7 +260,7 @@ getbrick open-platform billing:disputes:withdraw <dispute-id> --invoice-id <invo
 - 应用数据库角色必须是非超级用户且不具 `BYPASSRLS`：`OpenPlatformSqlRuntime.isReady()` 会查询 `pg_roles` 校验 `rolsuper`/`rolbypassrls`，命中即判定未就绪。禁止用超级用户连接运行 control-plane。
 - 租户模式（`TenantMode`）共三种：`shared`（所有租户同表，隔离依赖 RLS 与应用层租户校验）、`dedicated`（每租户独立 schema/库）、`fixed`（单租户固定 `tenantId`）。开放平台 outbox 在这三种模式下都要求启用并 `FORCE ROW LEVEL SECURITY`。
 - 运维只读账号应与 relay 运行账号分离：只读账号仅授予 `SELECT`，relay 账号需要 outbox 表的 `INSERT/UPDATE`（不允许 `DELETE`，迁移已用触发器禁止删除）。
-- leader advisory lock 是数据库全局对象，不区分租户：同一数据库只应有一组 relay 使用同一个 `leaseKey`。
+- leader 租约是数据库全局对象，不区分租户：`gb_open_relay_lease` 不带租户列，同一数据库只应有一组 relay 使用同一个 `leaseKey`。
 
 ## 6. 事件来源与开关
 
@@ -283,9 +294,7 @@ OpenPlatformModule.forRoot({
 
 - **未做大规模并发压测**：批量、租户分页与租约逻辑只有单元测试覆盖，没有多实例、大数据量、长时间运行的压测数据；首次上线前建议在预发环境做积压与故障切换演练。
 - **无内置多活 / 跨地域调度**：领导者租约是单活模型，没有跨地域的选主、就近投递或双活写入合并；跨地域部署会退化为「一个区域持有租约、其余区域 standby」，并受数据库单点延迟影响。
-- **依赖数据库租约**：互斥完全依赖 advisory lock（默认实现）。数据库不可用或连接被中间件代理时，所有实例都会退化为 standby（`skipped` 递增且 `errors` 增长），投递暂停但不丢事件。
-- **会话锁与连接池的耦合**：`SqlOpenPlatformRelayLease` 无法保证 `release` 与 `acquire` 落在同一数据库会话，连接池下可能出现「锁未及时释放」；需要严格释放语义时必须提供固定连接（见 2.2）。
-- **租约 TTL 无法续约到 tick 之外**：relay 只在 tick 边界获取与释放租约，不会在 tick 执行中途续租；超长 tick（大量租户或慢下游）应调大 `leaseTtlMs`。
+- **依赖数据库租约**：互斥完全依赖 `gb_open_relay_lease` 表（默认实现）。数据库不可用或连接被中间件代理时，所有实例都会退化为 standby，投递暂停但不丢事件。注意此时 `acquire` 抛异常会计入 `errors`；而「正常但没抢到」只累加 `skipped`，`errors` 不涨，仅凭 `errors = 0` 不能判断 relay 健康，必须同时看 `claimed` 与 `skipped` 的比值。
+- **租约 TTL 无法续约到 tick 之外**：relay 只在 tick 边界获取与释放租约，不会在 tick 执行中途续租（`renew` 未被调用）。单轮投递超过 `leaseTtlMs` 时其他实例可接管，而本实例仍在投递；投递正确性由 outbox 的 `claim` 租约兜底，但会产生重复扫描，因此超长 tick（大量租户或慢下游）应调大 `leaseTtlMs`。
 - **指标不含租户维度**：快照仅有聚合计数，租户级排查依赖既有查询接口与日志聚合。
 - **无内置指标导出器**：需要部署方自行把 `snapshot()` 接入指标系统。
-- **`holder()` 仅内存实现可用**：SQL advisory lock 无法报告当前持有者。

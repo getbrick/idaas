@@ -155,7 +155,7 @@ describe("open platform SQL persistence", () => {
     expect(additive).toContain("event_hash");
     expect(additive).toContain("previous_hash");
     expect(additive).toContain("event_id");
-    expect(getOpenPlatformMigrations({ tenantId: "tenant-a" }).map((migration) => migration.version)).toEqual([1, 2, 3, 4]);
+    expect(getOpenPlatformMigrations({ tenantId: "tenant-a" }).map((migration) => migration.version)).toEqual([1, 2, 3, 4, 5]);
     expect(getOpenPlatformManagementMigrationDefinition({ tenantId: "tenant-a" }).version).toBe(2);
   });
 
@@ -179,9 +179,9 @@ describe("open platform SQL persistence", () => {
     expect(definition.checksum).toHaveLength(64);
     expect(definition.additive).toBe(true);
     expect(definition.requires).toEqual([2]);
-    expect(getOpenPlatformMigrations({ tenantId: "tenant-a", includeManagementMigration: false }).map((migration) => migration.version)).toEqual([1, 4]);
-    expect(getOpenPlatformMigrations({ tenantId: "tenant-a", includeDeliveryLeaseMigration: false }).map((migration) => migration.version)).toEqual([1, 2, 4]);
-    expect(getOpenPlatformMigrations({ tenantId: "tenant-a", includeDomainEventMigration: false }).map((migration) => migration.version)).toEqual([1, 2, 3]);
+    expect(getOpenPlatformMigrations({ tenantId: "tenant-a", includeManagementMigration: false }).map((migration) => migration.version)).toEqual([1, 4, 5]);
+    expect(getOpenPlatformMigrations({ tenantId: "tenant-a", includeDeliveryLeaseMigration: false }).map((migration) => migration.version)).toEqual([1, 2, 4, 5]);
+    expect(getOpenPlatformMigrations({ tenantId: "tenant-a", includeDomainEventMigration: false }).map((migration) => migration.version)).toEqual([1, 2, 3, 5]);
   });
 
   it("adds the append-only domain event outbox only in the additive v4 migration", () => {

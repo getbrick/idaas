@@ -39,7 +39,7 @@ databaseIt("persists the open-platform lifecycle and enforces runtime boundaries
 
   const migration = await applyOpenPlatformSmokeMigration(pool);
   expect(migration.atomic).toBe(true);
-  expect(migration.applied.length + migration.skipped.length).toBe(4);
+  expect(migration.applied.length + migration.skipped.length).toBe(5);
 
   const serviceA = createOpenPlatformSmokeService(pool, tenantA);
   const serviceB = createOpenPlatformSmokeService(pool, tenantB);

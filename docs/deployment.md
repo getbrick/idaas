@@ -18,7 +18,7 @@
 | 服务就绪聚合 | `packages/control-plane/src/open-platform/service.ts`（`isReady()`） |
 | outbox 端口与内存实现 | `packages/control-plane/src/open-platform/events.ts` |
 | relay、租约端口与内存租约 | `packages/control-plane/src/open-platform/events-relay.ts` |
-| SQL outbox、SQL advisory lock 租约、RLS/租户上下文 | `packages/control-plane/src/open-platform/persistence/events.ts`、`persistence/adapter.ts` |
+| SQL outbox、SQL 租约表（`gb_open_relay_lease`）、RLS/租户上下文 | `packages/control-plane/src/open-platform/persistence/events.ts`、`persistence/adapter.ts` |
 | 迁移定义与版本号 | `packages/control-plane/src/open-platform/persistence/migration.ts` |
 | webhook 端点策略与签名 | `packages/control-plane/src/open-platform/webhook.ts` |
 | 事件查询与重放接口 | `packages/control-plane/src/open-platform/http/open-platform-domain-events.controller.ts` |
@@ -104,7 +104,7 @@
 1. 单独一个 Deployment 运行 relay，与 HTTP 流量分离。
 2. 注入 `OpenPlatformPersistence.SqlOpenPlatformRelayLease`（`productionReady === true`），`mode: "production"`。
 3. 多副本时所有副本必须使用同一个 `leaseKey`（默认 `getbrick:open-platform:outbox-relay`）。
-4. 优先给 relay 租约一条**固定连接**，避免 `pg_advisory_unlock` 落在池中另一条连接上。
+4. 确认 additive v5 迁移（`open-platform-relay-lease`，表 `gb_open_relay_lease`）已执行；`SqlOpenPlatformRelayLease.isReady()` 依赖该表。租约状态存在表里而非连接上，**不需要**为 relay 单独预留固定连接。
 
 **通过标准**：standby 副本的 `relay.snapshot()` 显示 `leader: false`、`skipped` 递增、`claimed: 0`；leader 副本 `leader: true` 且 `claimed` 增长。细节见运维手册第 2.2、2.3 节。
 
@@ -169,7 +169,7 @@
 - 租户列默认 `tenant_id`；租户上下文通过事务内 `SELECT set_config('app.tenant_id', $1, true)` 设置，由 `OpenPlatformSqlRuntime.withTransaction()` / `withTenantContext()` 完成，调用方不要自己拼 `set_config`。
 - 三种租户模式（`TenantMode`）：`shared`（同表 + RLS，强制要求事务与 RLS）、`dedicated`（每租户独立 schema/库）、`fixed`（单租户固定 `tenantId`）。开放平台 outbox 表在三种模式下都应启用并 `FORCE ROW LEVEL SECURITY`。
 - 迁移 SQL 只在 `includeRls: true`、`requireRls: true` 或 `mode === "shared"` 时附带 RLS 语句。因此**若目标环境用 `shared` 模式，必须显式确认 RLS 策略已生成**（`USING` 与 `WITH CHECK` 同时存在，`relrowsecurity` 与 `relforcerowsecurity` 均为真），否则 `isReady()` 会判定未就绪。
-- 领导者 advisory lock 是数据库级全局对象，不区分租户：同一数据库只应有一组 relay 使用同一个 `leaseKey`。
+- 领导者租约（`gb_open_relay_lease`）是数据库级全局对象，不带租户列、不参与 RLS，不区分租户：同一数据库只应有一组 relay 使用同一个 `leaseKey`。
 - 跨租户聚合视图（某段时间失败最多的租户等）应由离线作业或日志聚合生成，不要通过放宽接口作用域实现。
 
 ## 4. Relay 部署
@@ -188,7 +188,7 @@
 | `tenantPageSize` / `maxTenantsPerTick` | 100 / 10 000 | 上限 10 000 |
 
 - **单活 + 多副本 standby**：每轮 tick 开头 `acquire`，取不到就记 `skipped` 并继续按间隔调度；取到则投递并在 `finally` 中 `release`。租约获取失败（抛错或返回非法状态）按失败关闭处理，计入 `errors` 且以 `scope: "lease"` 上报，绝不退化为「无租约也投递」。
-- **连接亲和性**：`SqlOpenPlatformRelayLease` 用会话级 `pg_try_advisory_lock(hashtextextended($1, 0))` / `pg_advisory_unlock(hashtextextended($1, 0))`。`expiresAt` 只是客户端视图（`now + leaseTtlMs`），真实释放条件是 unlock 或会话关闭。`acquire` 与 `release` 落在不同连接时 `release` 返回 `false`，锁会保留到该连接关闭，表现为其他实例持续 `skipped`。要严格保证释放语义，请为 relay 租约单独提供固定连接。
+- **租约是表行，不是会话锁**：`SqlOpenPlatformRelayLease` 用一条 `INSERT ... ON CONFLICT DO UPDATE ... WHERE` 原子抢占 `gb_open_relay_lease`，`expires_at` 由数据库持有，因此 `leaseTtlMs` 是真实的服务端过期时间。`acquire` / `release` 落在不同连接或不同实例都不会泄漏；实例崩溃后到期即可被接管，不依赖其连接断开。可用 `holder(leaseKey)` 查询当前持有者。
 - **指标接入**：仓库内没有内置 exporter，需要部署方周期性调用 `relay.snapshot()` 并映射为指标。字段含义、告警条件与导出建议见运维手册第 3 节；快照刻意不含租户标识与事件载荷，可直接作为指标标签来源。
 - **积压与死信入口**：一律走既有运维接口，不要直接改库。
   - 查询：`GET /api/open/v1/domain-events?status=failed&limit=100`（单页上限 100，可用 `sequence` 游标翻页），CLI `getbrick open-platform events:list`。

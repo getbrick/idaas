@@ -1083,22 +1083,19 @@ describe("open platform SQL relay lease", () => {
     };
   }
 
-  it("acquires and releases a stable advisory lock key", async () => {
-    const executor = adapter((text) => {
-      if (text.includes("pg_try_advisory_lock")) {
-        return { rows: [{ acquired: true }], rowCount: 1 };
-      }
-      if (text.includes("pg_advisory_unlock")) {
-        return { rows: [{ released: true }], rowCount: 1 };
-      }
-      return { rows: [] };
-    });
-    const lease = new OpenPlatformPersistence.SqlOpenPlatformRelayLease(
+  function sqlLease(adapter: TestAdapter): OpenPlatformPersistence.SqlOpenPlatformRelayLease {
+    return new OpenPlatformPersistence.SqlOpenPlatformRelayLease(
       new OpenPlatformPersistence.OpenPlatformSqlRuntime({
-        adapter: executor,
+        adapter,
         tenantId: "relay-alpha",
       }),
     );
+  }
+
+  it("stores the lease in a table row so acquire and release are session independent", async () => {
+    const rows = new Map<string, { ownerId: string; expiresAt: string }>();
+    const executor = leaseTableAdapter(rows);
+    const lease = sqlLease(executor);
 
     expect(lease.productionReady).toBe(true);
     expect(lease.readiness).toMatchObject({
@@ -1115,80 +1112,95 @@ describe("open platform SQL relay lease", () => {
       expiresAt: "2031-05-01T00:00:30.000Z",
     });
     const acquire = executor.calls.at(-1);
-    expect(acquire?.text).toBe(
-      'SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS "acquired"',
-    );
-    expect(acquire?.values).toEqual([OPEN_PLATFORM_EVENT_RELAY_LEASE_KEY]);
+    expect(acquire?.text).toContain('INSERT INTO "gb_open_relay_lease"');
+    expect(acquire?.text).toContain("ON CONFLICT");
+    expect(acquire?.text).not.toContain("pg_try_advisory_lock");
+    expect(acquire?.values).toEqual([
+      OPEN_PLATFORM_EVENT_RELAY_LEASE_KEY,
+      "relay_owner_a",
+      "2031-05-01T00:00:00.000Z",
+      "2031-05-01T00:00:30.000Z",
+    ]);
     expect((await lease.renew(leaseRequest("relay_owner_a"))).held).toBe(true);
-    expect(executor.calls.at(-1)?.text).toBe(acquire?.text);
+    expect(rows.get(OPEN_PLATFORM_EVENT_RELAY_LEASE_KEY)?.ownerId).toBe(
+      "relay_owner_a",
+    );
 
     expect(await lease.release(leaseRequest("relay_owner_a"))).toBe(true);
     const release = executor.calls.at(-1);
-    expect(release?.text).toBe(
-      'SELECT pg_advisory_unlock(hashtextextended($1, 0)) AS "released"',
-    );
-    expect(release?.values).toEqual([OPEN_PLATFORM_EVENT_RELAY_LEASE_KEY]);
+    expect(release?.text).toContain('DELETE FROM "gb_open_relay_lease"');
+    expect(release?.text).not.toContain("pg_advisory_unlock");
+    expect(release?.values).toEqual([
+      OPEN_PLATFORM_EVENT_RELAY_LEASE_KEY,
+      "relay_owner_a",
+    ]);
+    expect(rows.size).toBe(0);
   });
 
-  it("reports a lost lock and a stable key across instances", async () => {
-    const locks = new Map<string, string>();
-    const session = (name: string): TestAdapter =>
-      adapter((text, values) => {
-        const key = String(values[0]);
-        if (text.includes("pg_try_advisory_lock")) {
-          const acquired = !locks.has(key);
-          if (acquired) locks.set(key, name);
-          return { rows: [{ acquired }], rowCount: 1 };
-        }
-        if (text.includes("pg_advisory_unlock")) {
-          const released = locks.get(key) === name;
-          if (released) locks.delete(key);
-          return { rows: [{ released }], rowCount: 1 };
-        }
-        return { rows: [] };
-      });
-    const firstSession = session("session_a");
-    const secondSession = session("session_b");
-    const first = new OpenPlatformPersistence.SqlOpenPlatformRelayLease(
-      new OpenPlatformPersistence.OpenPlatformSqlRuntime({
-        adapter: firstSession,
-        tenantId: "relay-alpha",
-      }),
-    );
-    const second = new OpenPlatformPersistence.SqlOpenPlatformRelayLease(
-      new OpenPlatformPersistence.OpenPlatformSqlRuntime({
-        adapter: secondSession,
-        tenantId: "relay-beta",
-      }),
-    );
+  it("keeps one holder per key and hands over only after the ttl expires", async () => {
+    const rows = new Map<string, { ownerId: string; expiresAt: string }>();
+    const first = sqlLease(leaseTableAdapter(rows));
+    const second = sqlLease(leaseTableAdapter(rows));
     const staging = {
       ...leaseRequest("relay_owner_b"),
       key: "getbrick:open-platform:outbox-relay:staging",
     };
 
     expect((await first.acquire(leaseRequest("relay_owner_a"))).held).toBe(true);
-    expect((await second.acquire(leaseRequest("relay_owner_b"))).held).toBe(false);
+    const blocked = await second.acquire(leaseRequest("relay_owner_b"));
+    expect(blocked.held).toBe(false);
+    expect(blocked.ownerId).toBe("relay_owner_a");
     expect(await second.release(leaseRequest("relay_owner_b"))).toBe(false);
-    expect(await first.release(leaseRequest("relay_owner_a"))).toBe(true);
-    expect((await second.acquire(leaseRequest("relay_owner_b"))).held).toBe(true);
+
+    expect(
+      (
+        await second.acquire(
+          leaseRequest("relay_owner_b", "2031-05-01T00:00:29.999Z"),
+        )
+      ).held,
+    ).toBe(false);
+    const takenOver = await second.acquire(
+      leaseRequest("relay_owner_b", "2031-05-01T00:00:30.000Z"),
+    );
+    expect(takenOver.held).toBe(true);
+    expect(takenOver.ownerId).toBe("relay_owner_b");
+    expect(takenOver.expiresAt).toBe("2031-05-01T00:01:00.000Z");
+
     expect((await first.acquire(staging)).held).toBe(true);
-    const statements = [...firstSession.calls, ...secondSession.calls];
-    expect(statements).toHaveLength(6);
+    expect(await first.holder(staging.key)).toMatchObject({
+      key: staging.key,
+      ownerId: "relay_owner_b",
+    });
+    expect(await second.holder(OPEN_PLATFORM_EVENT_RELAY_LEASE_KEY)).toMatchObject({
+      ownerId: "relay_owner_b",
+    });
     expect(
-      statements.every(
-        (call) =>
-          call.text.includes("pg_try_advisory_lock(hashtextextended($1, 0))") ||
-          call.text.includes("pg_advisory_unlock(hashtextextended($1, 0))"),
-      ),
+      await first.holder("getbrick:open-platform:outbox-relay:unknown"),
+    ).toBeUndefined();
+    expect(await first.release(leaseRequest("relay_owner_a"))).toBe(false);
+    expect(await second.release(leaseRequest("relay_owner_b"))).toBe(true);
+    expect((await first.acquire(leaseRequest("relay_owner_a"))).held).toBe(true);
+  });
+
+  it("fails a release from a non owner and refuses to renew a lost lease", async () => {
+    const rows = new Map<string, { ownerId: string; expiresAt: string }>();
+    const first = sqlLease(leaseTableAdapter(rows));
+    const second = sqlLease(leaseTableAdapter(rows));
+
+    expect((await first.acquire(leaseRequest("relay_owner_a"))).held).toBe(true);
+    expect(await second.release(leaseRequest("relay_owner_b"))).toBe(false);
+    expect(
+      (await second.renew(leaseRequest("relay_owner_b"))).held,
+    ).toBe(false);
+    expect(
+      (await first.renew(leaseRequest("relay_owner_a"))).held,
     ).toBe(true);
+    expect(await first.holder(OPEN_PLATFORM_EVENT_RELAY_LEASE_KEY)).toMatchObject({
+      ownerId: "relay_owner_a",
+    });
     expect(
-      statements.filter((call) => call.values[0] === staging.key),
-    ).toHaveLength(1);
-    expect(
-      statements.filter(
-        (call) => call.values[0] === OPEN_PLATFORM_EVENT_RELAY_LEASE_KEY,
-      ),
-    ).toHaveLength(5);
+      await first.holder("getbrick:open-platform:outbox-relay:unknown"),
+    ).toBeUndefined();
   });
 
   it("propagates SQL errors and rejects invalid lease keys", async () => {
@@ -1221,6 +1233,63 @@ describe("open platform SQL relay lease", () => {
     expect(executor.calls).toHaveLength(2);
   });
 });
+
+function leaseTableAdapter(
+  rows: Map<string, { ownerId: string; expiresAt: string }>,
+): TestAdapterShape {
+  const calls: { text: string; values: unknown[] }[] = [];
+  const query = async (
+    text: string,
+    values: unknown[] = [],
+  ): Promise<{ rows: unknown[]; rowCount: number }> => {
+    calls.push({ text, values });
+    const [key, ownerId, now, expiresAt] = values as [
+      string,
+      string,
+      string,
+      string,
+    ];
+    if (text.includes("ON CONFLICT")) {
+      const existing = rows.get(key);
+      const takeoverExpired = text.includes(`<= $3::timestamptz`);
+      const allowed =
+        existing === undefined ||
+        existing.ownerId === ownerId ||
+        (takeoverExpired && Date.parse(existing.expiresAt) <= Date.parse(now));
+      if (!allowed) return { rows: [], rowCount: 0 };
+      rows.set(key, { ownerId, expiresAt });
+      return {
+        rows: [{ ownerId, expiresAt }],
+        rowCount: 1,
+      };
+    }
+    if (text.startsWith("DELETE")) {
+      const existing = rows.get(key);
+      if (existing === undefined || existing.ownerId !== ownerId) {
+        return { rows: [], rowCount: 0 };
+      }
+      rows.delete(key);
+      return { rows: [], rowCount: 1 };
+    }
+    const existing = rows.get(String(values[0]));
+    return {
+      rows: existing === undefined ? [] : [existing],
+      rowCount: existing === undefined ? 0 : 1,
+    };
+  };
+  return {
+    calls,
+    query,
+    transaction: async <T>(
+      callback: (executor: OpenPlatformPersistence.DatabaseAdapter) => Promise<T>,
+    ): Promise<T> => callback({ query }),
+  };
+}
+
+type TestAdapterShape = OpenPlatformPersistence.DatabaseAdapter & {
+  calls: { text: string; values: unknown[] }[];
+};
+
 
 describe("open platform event relay outbox helpers", () => {
   beforeEach(() => {

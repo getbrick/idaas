@@ -32,7 +32,7 @@ it("applies the full open-platform, commerce, and compliance version series unde
   const openPlatform = OpenPlatformPersistence.getOpenPlatformMigrations(openPlatformMigrationOptions);
   const commerce = OpenPlatformCommercePersistence.getOpenCommerceMigrations(commerceMigrationOptions);
   const compliance = [OpenPlatformCompliancePersistence.getOpenComplianceMigrationDefinition(complianceMigrationOptions)];
-  expect(openPlatform.map((migration) => migration.version)).toEqual([1, 2, 3, 4]);
+  expect(openPlatform.map((migration) => migration.version)).toEqual([1, 2, 3, 4, 5]);
   expect(commerce.map((migration) => migration.version)).toEqual([1, 2, 3, 4]);
   expect(compliance.map((migration) => migration.version)).toEqual([1]);
   expect(openPlatformMigrationOptions.mode).toBe("fixed");

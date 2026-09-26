@@ -38,6 +38,7 @@ export interface OpenPlatformSqlTableNames {
   webhookDeliveries: string;
   auditEvents: string;
   domainEvents: string;
+  relayLeases: string;
   developerOrganization?: string;
   applicationEnvironment?: string;
   apiProduct?: string;
@@ -68,7 +69,8 @@ export type OpenPlatformSqlTableKey =
   | "webhooks"
   | "webhookDeliveries"
   | "auditEvents"
-  | "domainEvents";
+  | "domainEvents"
+  | "relayLeases";
 export type OpenPlatformSqlColumns = Record<
   OpenPlatformSqlTableKey,
   Record<string, string>
@@ -126,6 +128,7 @@ export const OPEN_PLATFORM_SQL_TABLES: OpenPlatformSqlTableNames = Object.freeze
   webhookDeliveries: "gb_open_webhook_delivery",
   auditEvents: "gb_open_audit_event",
   domainEvents: "gb_open_domain_event",
+  relayLeases: "gb_open_relay_lease",
 });
 
 export const OPEN_PLATFORM_SQL_FIELDS: Readonly<Record<OpenPlatformSqlTableKey, readonly string[]>> = Object.freeze({
@@ -144,6 +147,7 @@ export const OPEN_PLATFORM_SQL_FIELDS: Readonly<Record<OpenPlatformSqlTableKey, 
   webhookDeliveries: ["id", "tenantId", "webhookId", "eventId", "event", "eventType", "status", "attempt", "maxAttempts", "idempotencyKey", "payload", "body", "secretVersion", "nextAttemptAt", "deliveredAt", "responseStatusCode", "responseBodyExcerpt", "errorCode", "createdAt", "updatedAt"],
   auditEvents: ["id", "tenantId", "action", "outcome", "actorType", "actorId", "actorDisplayName", "actorIpAddress", "actorUserAgent", "targetType", "targetId", "targetDisplayName", "requestId", "metadata", "occurredAt", "sequence", "source", "previousHash", "eventHash", "createdAt"],
   domainEvents: ["id", "tenantId", "eventType", "resourceType", "resourceId", "resourceVersion", "resourceStatus", "actorId", "requestId", "occurredAt", "schemaVersion", "data", "status", "sequence", "attempt", "maxAttempts", "nextAttemptAt", "publishedAt", "errorCode", "leaseId", "leaseExpiresAt", "createdAt", "updatedAt"],
+  relayLeases: ["leaseKey", "ownerId", "acquiredAt", "expiresAt", "updatedAt"],
 });
 
 const DEFAULT_COLUMNS: OpenPlatformSqlColumns = {
@@ -405,6 +409,13 @@ const DEFAULT_COLUMNS: OpenPlatformSqlColumns = {
     createdAt: "created_at",
     updatedAt: "updated_at",
   },
+  relayLeases: {
+    leaseKey: "lease_key",
+    ownerId: "owner_id",
+    acquiredAt: "acquired_at",
+    expiresAt: "expires_at",
+    updatedAt: "updated_at",
+  },
 };
 
 export const OPEN_PLATFORM_SQL_COLUMNS: OpenPlatformSqlColumns = Object.freeze(DEFAULT_COLUMNS);
@@ -439,6 +450,7 @@ export const OPEN_PLATFORM_ALL_TABLES: readonly OpenPlatformSqlTableKey[] = Obje
   "webhookDeliveries",
   "auditEvents",
   "domainEvents",
+  "relayLeases",
 ]);
 
 export interface OpenPlatformSqlReadiness {
@@ -1256,6 +1268,7 @@ function requiredFields(key: OpenPlatformSqlTableKey): readonly string[] {
     webhookDeliveries: ["eventType", "body", "nextAttemptAt", "deliveredAt", "responseStatusCode", "responseBodyExcerpt", "errorCode"],
     auditEvents: ["actorDisplayName", "actorIpAddress", "actorUserAgent", "targetDisplayName", "requestId", "previousHash"],
     domainEvents: ["resourceVersion", "resourceStatus", "actorId", "requestId", "nextAttemptAt", "publishedAt", "errorCode", "leaseId", "leaseExpiresAt"],
+    relayLeases: [],
   };
   return OPEN_PLATFORM_SQL_FIELDS[key].filter((field) => !optional[key].includes(field));
 }

@@ -74,7 +74,7 @@ Application-management tables are created by the versioned `createApplicationMan
 
 `getOpenPlatformMigrations()` / `applyVersionedOpenPlatformMigration()`, `getOpenCommerceMigrations()`, and `getOpenComplianceMigrationDefinition()` / `applyVersionedOpenComplianceMigration()` from `@getbrick/idaas-control-plane` add three independent versioned series with their own history and lock tables.
 
-Open platform (current series v1–v4, history `gb_open_schema_migration`, lock `gb_open_schema_migration_lock`):
+Open platform (current series v1–v5, history `gb_open_schema_migration`, lock `gb_open_schema_migration_lock`):
 
 | Version | Tables |
 |---------|--------|
@@ -82,6 +82,7 @@ Open platform (current series v1–v4, history `gb_open_schema_migration`, lock 
 | v2 management | `gb_open_webhook`, `gb_open_webhook_delivery`, `gb_open_audit_event` |
 | v3 delivery lease | `lease_id` / `lease_expires_at` on `gb_open_webhook_delivery` |
 | v4 domain event outbox | `gb_open_domain_event` |
+| v5 relay lease | `gb_open_relay_lease` |
 
 Commerce (current series v1–v4, history `gb_open_commerce_schema_migration`, lock `gb_open_commerce_schema_migration_lock`):
 
